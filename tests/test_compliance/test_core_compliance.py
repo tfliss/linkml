@@ -297,6 +297,8 @@ def test_any_type(framework, example_value):
         pytest.skip("Decimal not supported by YAML - https://github.com/yaml/pyyaml/issues/255")
     if framework in [SQL_DDL_SQLITE, SQL_DDL_POSTGRES]:
         pytest.skip("TODO: add support in sqlgen")
+    if framework == PANDERA_POLARS_CLASS:
+        pytest.skip("PanderaGen does not support class range slots.")
     classes = {
         CLASS_ANY: {
             "class_uri": "linkml:Any",

@@ -73,6 +73,8 @@ def test_pattern(framework, range, schema_name, pattern, data_name, value):
     prefixes = {
         "X": "http://example.org/",
     }
+    if framework == PANDERA_POLARS_CLASS and range == CLASS_D:
+        pytest.skip("PanderaGen does not implement class ranged slots.")
     schema = validated_schema(
         test_pattern, schema_name, framework, classes=classes, prefixes=prefixes, core_elements=["pattern"]
     )

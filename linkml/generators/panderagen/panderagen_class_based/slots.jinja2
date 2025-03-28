@@ -1,3 +1,7 @@
+{#-
+  Jinja2 macros for rendering slots in a Pandera class-based model
+
+-#}
 {%- import 'enums.jinja2' as enum_macros -%}
 
 {%- macro constraint_parameters(field, slot) -%}
@@ -7,14 +11,6 @@
     {%- if slot.maximum_value is not none -%}le={{ slot.maximum_value }}, {% endif -%}
     {%- if slot.pattern is not none -%}str_matches=r"{{ slot.pattern }}", {% endif -%}
     {%- if (slot.required is none or slot.required is false) and slot.identifier is not true -%}nullable=True, {% endif -%}
-{%- endmacro -%}
-
-{%- macro id_slot_name_class_variable(cls) -%}
-    {%- for field in cls.fields -%}
-        {%- if field.source_slot.identifier %}
-    _id_name : str = '{{ field.name }}'
-        {% endif -%}
-    {%- endfor -%}
 {%- endmacro -%}
 
 {%- macro render_slot(field) -%}

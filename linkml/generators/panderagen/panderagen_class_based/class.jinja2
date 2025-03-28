@@ -1,5 +1,8 @@
+{#-
+  Jinja2 Template for a Pandera class-based model
+  Details at https://pandera.readthedocs.io/en/stable/dataframe_models.html
+-#}
 {%- import 'slots.jinja2' as slot_macros -%}
-{%- import 'custom_checks.jinja2' as custom_checks -%}
 
 {%- macro render_class(cls) %}
 class {{cls.name}}(
@@ -14,23 +17,10 @@ class {{cls.name}}(
     {{ cls.source_class.description }}
     """
     {% endif -%}
-    {{ slot_macros.id_slot_name_class_variable(cls) }}
     {%- if (cls.fields | length) == 0 %}
     pass
     {% endif -%}
     {%- for field in cls.fields -%}
         {{ slot_macros.render_slot(field) }}
     {%- endfor -%}
-    {%- for field in cls.fields -%}
-        {{ custom_checks.render_custom_check(field) }}
-    {%- endfor %}
-    _NESTED_RANGES = {
-    {%- for field in cls.fields -%}
-        {%- with slot = field.source_slot -%}
-            {%- if slot.annotations['reference_class'] %}
-        "{{ field.name }}": "{{ slot.annotations['reference_class'] }}",
-{% endif -%}
-        {%- endwith -%}
-    {%- endfor %}
-    }
 {% endmacro -%}

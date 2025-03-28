@@ -23,21 +23,6 @@ default_prefix: ex
 
 classes:
 
-  AnyType:
-    description: the magic class_uri makes this map to linkml Any or polars Object
-    class_uri: linkml:Any
-
-  ColumnType:
-    description: Nested in a column
-    attributes:
-      id:
-        identifier: True
-        range: string
-      x:
-        range: integer
-      y:
-        range: integer
-
   PanderaSyntheticTable:
     description: A flat table with a reasonably complete assortment of datatypes.
     attributes:
@@ -57,18 +42,15 @@ classes:
         required: True
         minimum_value: 0
         maximum_value: 999
-        #ifabsent: int(5)
       float_column:
         description: test float column
         range: float
         required: True
-        #ifabsent: float(2.3)
       string_column:
         description: test string column
         range: string
         required: True
-        #pattern: "^(this)|(that)|(whatever)$"
-        #ifabsent: string("whatever")
+        pattern: "^(this)|(that)|(whatever)$"
       date_column:
         description: test date column
         range: date
@@ -94,31 +76,6 @@ classes:
         required: True
         multivalued: True
         inlined_as_list: True
-      multivalued_one_many_column:
-        description: list form
-        range: integer
-        required: True
-        multivalued: True
-      any_type_column:
-        description: needs to have type object
-        range: AnyType
-        required: True
-      cardinality_column:
-        description: check cardinality
-        range: integer
-        required: true
-        minimum_cardinality: 1
-        maximum_cardinality: 1
-      class_column:
-        description: test column with another class id
-        range: ColumnType
-        required: true
-      inlined_class_column:
-        description: test column with another class inlined as a struct
-        range: ColumnType
-        required: True
-        inlined_as_list: True
-
 
 enums:
   SyntheticEnum:
@@ -147,9 +104,6 @@ MODEL_COLUMNS = [
     "enum_column",
     "ontology_enum_column",
     "multivalued_column",
-    "multivalued_one_many_column",
-    "any_type_column",
-    "cardinality_column",
 ]
 
 
@@ -179,6 +133,7 @@ def N():
 
 @pytest.fixture(scope="module")
 def big_synthetic_dataframe(pl, np, N):
+    """Construct a reasonably sized dataframe that complies with the PanderaSyntheticTable model"""
     test_enum = pl.Enum(["ANIMAL", "VEGETABLE", "MINERAL"])
     test_ont_enum = pl.Enum(["fiction", "non fiction"])
 
@@ -212,18 +167,7 @@ def big_synthetic_dataframe(pl, np, N):
                     strict=False
                 ),
                 "multivalued_column": [[1, 2, 3],] * N,
-                "multivalued_one_many_column": pl.Series(np.random.choice(range(100), size=N), dtype=pl.Int64),
-                "any_type_column": pl.Series([1,] * N, dtype=pl.Object),
-                "cardinality_column": pl.Series(np.arange(1, N+1), dtype=pl.Int64),
-                "class_column": pl.Series(np.arange(0, N), dtype=pl.Int64).cast(pl.Utf8),
             }
-        )
-        .with_columns(
-            pl.struct(
-                pl.Series(values=np.random.choice([0, 1], size=N), dtype=pl.Int64).cast(pl.Utf8).alias("id"),
-                pl.Series(values=np.random.choice([0, 1], size=N), dtype=pl.Int64).alias("x"),
-                pl.Series(values=np.random.choice([0, 1], size=N), dtype=pl.Int64).alias("y")
-            ).alias("inlined_class_column"),
         )
     )
     # fmt: on
@@ -247,7 +191,7 @@ def test_pandera_basic_class_based(synthetic_schema):
 
     This test will check the generated python, but does not include a compilation step
     """
-    code = synthetic_schema.serialize()  # default is class-based
+    code = synthetic_schema.serialize()
 
     classes = []
 
@@ -258,7 +202,7 @@ def test_pandera_basic_class_based(synthetic_schema):
         if match:
             classes.append(match.group(1))
 
-    expected_classes = ["AnyType", "ColumnType", "PanderaSyntheticTable"]
+    expected_classes = ["PanderaSyntheticTable"]
 
     assert sorted(expected_classes) == sorted(classes)
 
@@ -273,9 +217,6 @@ def test_dump_schema_code(synthetic_schema):
 
 def test_get_metadata(compiled_synthetic_schema_module):
     logger.info(compiled_synthetic_schema_module.PanderaSyntheticTable.get_metadata())
-
-
-#    logger.info(compiled_synthetic_schema_module.PanderaSyntheticTable.to_json_schema())
 
 
 def test_dump_synthetic_df(big_synthetic_dataframe):
@@ -309,27 +250,6 @@ def test_pandera_validation_error_ge(pl, pandera, compiled_synthetic_schema_modu
     assert "DATAFRAME_CHECK" in str(e.value)
     assert "less_than_or_equal_to(999)" in str(e.value)
     assert "'column': 'integer_column'" in str(e)
-
-
-def test_pandera_validation_error_cardinality(pl, pandera, compiled_synthetic_schema_module, big_synthetic_dataframe):
-    """
-    tests ge range validation error
-    """
-    # fmt: off
-    bad_cardinality_dataframe = (
-        big_synthetic_dataframe
-        .with_columns(
-            pl.lit(1000, pl.Int64).alias("cardinality_column")
-        )
-    )
-    # fmt: on
-
-    with pytest.raises(pandera.errors.SchemaErrors) as e:
-        compiled_synthetic_schema_module.PanderaSyntheticTable.validate(bad_cardinality_dataframe, lazy=True)
-
-    assert "DATAFRAME_CHECK" in str(e.value)
-    assert "check_cardinality_cardinality_column" in str(e.value)
-    assert "'column': 'cardinality_column'" in str(e)
 
 
 @pytest.mark.parametrize("bad_column", MODEL_COLUMNS)

@@ -1,23 +1,25 @@
 import logging
 import os
-import re
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import PurePosixPath
 from types import ModuleType
-from typing import List, Optional
+from typing import Optional
 
 import click
 from jinja2 import Environment, PackageLoader
-from linkml_runtime.linkml_model import ClassDefinitionName
-from linkml_runtime.linkml_model.meta import PermissibleValue, PermissibleValueText, SlotDefinition, TypeDefinition
+from linkml_runtime.linkml_model.meta import TypeDefinition
 from linkml_runtime.utils.compile_python import compile_python
 from linkml_runtime.utils.formatutils import camelcase
 from linkml_runtime.utils.schemaview import SchemaView
 
 from linkml._version import __version__
-from linkml.generators.oocodegen import OOClass, OOCodeGenerator, OODocument, OOField
+from linkml.generators.oocodegen import OOClass, OOCodeGenerator, OODocument
 from linkml.utils.generator import shared_arguments
+
+from .class_generator_mixin import ClassGeneratorMixin
+from .enum_generator_mixin import EnumGeneratorMixin
+from .slot_generator_mixin import SlotGeneratorMixin
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +46,7 @@ class TemplateEnum(Enum):
 
 
 @dataclass
-class PanderaGenerator(OOCodeGenerator):
+class PanderaGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixin, SlotGeneratorMixin):
     """
     Generates Pandera python classes from a LinkML schema.
 
@@ -85,21 +87,6 @@ class PanderaGenerator(OOCodeGenerator):
     def make_multivalued(range: str) -> str:
         return f"List[{range}]"
 
-    # this is based on sqlagen, but it only accounts for inheritance,
-    # not associations to other models
-    # for now these are cast to str to avoid import issues (resulting in an incorrect model)
-    @staticmethod
-    def order_classes_by_hierarchy(sv: SchemaView) -> List[ClassDefinitionName]:
-        olist = sv.class_roots()
-        unprocessed = [cn for cn in sv.all_classes() if cn not in olist]
-        while len(unprocessed) > 0:
-            ext_list = [cn for cn in unprocessed if not any(p for p in sv.class_parents(cn) if p not in olist)]
-            if len(ext_list) == 0:
-                raise ValueError(f"Cycle in hierarchy, cannot process: {unprocessed}")
-            olist += ext_list
-            unprocessed = [cn for cn in unprocessed if cn not in olist]
-        return olist
-
     def uri_type_map(self, xsd_uri: str, template: str = None):
         if template is None:
             template = self.template_path
@@ -118,45 +105,6 @@ class PanderaGenerator(OOCodeGenerator):
             return typ
         else:
             raise ValueError(f"{t} cannot be mapped to a type")
-
-    def ifabsent_default_value(self, slot: SlotDefinition) -> str:
-        ifabsent_pattern = re.compile(r"^((string)|(int)|(float)|(date)|(datetime)|([A-Za-z0-9_]+))\((.*)\)$")
-        MATCH_GROUP_TYPE_INDEX = 1
-        MATCH_GROUP_VALUE_INDEX = 8
-
-        ifabsent = slot.ifabsent
-        default_value = None
-
-        if ifabsent is None:
-            default_value = None
-        elif ifabsent is True or ifabsent == "True":
-            default_value = "True"
-        elif ifabsent is False or ifabsent == "False":
-            default_value = "False"
-        else:
-            ifabsent_match = ifabsent_pattern.match(ifabsent)
-
-            if ifabsent_match:
-                ifabsent_cast = ifabsent_match.group(MATCH_GROUP_TYPE_INDEX)
-                ifabsent_value = ifabsent_match.group(MATCH_GROUP_VALUE_INDEX).replace('"', '\\"')
-
-                if ifabsent_cast == "string":
-                    default_value = f'"{ifabsent_value}"'
-                elif ifabsent_cast == "int":
-                    default_value = str(int(ifabsent_value))
-                elif ifabsent_cast == "float":
-                    default_value = str(float(ifabsent_value))
-                elif ifabsent_cast == "date":
-                    raise NotImplementedError("ifabsent date not implemented.")
-                    # default_value = f"datetime.strptime({ifabsent_value})"
-                elif ifabsent_cast == "datetime":
-                    raise NotImplementedError("ifabsent datetime not implemented.")
-                    # default_value = f"datetime.strptime({ifabsent_value})"
-                else:
-                    # may need to look up the enum value here
-                    pass
-
-        return default_value
 
     def load_template(self, template_filename):
         jinja_env = Environment(loader=PackageLoader("linkml.generators.panderagen", self.template_path))
@@ -198,80 +146,20 @@ class PanderaGenerator(OOCodeGenerator):
         )
         return code
 
-    def extract_permissible_text(self, pv):
-        if isinstance(pv, str) or isinstance(pv, PermissibleValueText):
-            return pv.replace("'", "\\'").replace('"', '\\"')
-        elif isinstance(pv, PermissibleValue):
-            return pv.text.code
-        else:
-            raise ValueError(f"Invalid permissible value in enum : {pv}")
-
-    def get_enum_permissible_values(self, enum):
-        return list(map(self.extract_permissible_text, enum.permissible_values or []))
-
-    def handle_slot(self, cn: str, sn: str):
-        safe_sn = self.get_slot_name(sn)
-        slot = self.schemaview.induced_slot(sn, cn)
-        range = slot.range
-
-        if slot.alias is not None:
-            safe_sn = self.get_slot_name(slot.alias)
-
-        if range is None:
-            range = self.schema.default_range  # need to figure this out, set at the beginning?
-            if range is None:
-                range = "str"
-        elif range in self.schemaview.all_classes():
-            range_info = self.schemaview.all_classes().get(range)
-
-            if range_info["class_uri"] == "linkml:Any":
-                range = "Object"
-            elif slot.inlined or slot.inlined_as_list:
-                slot.annotations["reference_class"] = self.get_class_name(range)
-                range = "Struct"
-            else:
-                range = f"ID_TYPES['{self.get_class_name(range)}']"
-        elif range in self.schemaview.all_types():
-            t = self.schemaview.all_types().get(range)
-            range = self.map_type(t)
-        elif range in self.schemaview.all_enums():
-            enum_definition = self.schemaview.all_enums().get(range)
-            range = "Enum"
-            slot.annotations["permissible_values"] = self.get_enum_permissible_values(enum_definition)
-        else:
-            raise Exception(f"Unknown range {range}")
-
-        if slot.multivalued:
-            if slot.inlined_as_list and range != "Struct":
-                range = self.make_multivalued(range)
-
-        default_value = self.ifabsent_default_value(slot)
-
-        return OOField(
-            name=safe_sn,
-            source_slot=slot,
-            range=range,
-            default_value=default_value,
-        )
-
     def render(self) -> OODocument:
         """
         Implementation in progress
         :return:
         """
-        sv: SchemaView
-        sv = self.schemaview
+        sv: SchemaView = self.schemaview
 
         module_name = camelcase(sv.schema.name)
 
         oodoc = OODocument(name=module_name, package=self.package, source_schema=sv.schema)
 
-        # this will need to take into account slot ranges as well.
-        ordered_classes = [sv.get_class(cn, strict=True) for cn in self.order_classes_by_hierarchy(sv)]
-
         classes = []
 
-        for c in ordered_classes:
+        for c in self.ordered_classes():
             cn = c.name
             safe_cn = camelcase(cn)
             ooclass = OOClass(
@@ -286,8 +174,6 @@ class PanderaGenerator(OOCodeGenerator):
                 ooclass.mixin = c.mixin
             if c.mixins:
                 ooclass.mixins = [(x) for x in c.mixins]
-            # if c.abstract:
-            #    ooclass.abstract = c.abstraccamelcased
             if c.is_a:
                 ooclass.is_a = self.get_class_name(c.is_a)
                 parent_slots = sv.class_slots(c.is_a)
