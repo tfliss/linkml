@@ -14,6 +14,7 @@ authors = [
     "Kevin Schaper <kevin@tislab.org>",
 ]
 
+
 readme = "README.md"
 
 homepage = "https://linkml.io/linkml/"
@@ -128,6 +129,7 @@ black = { version=">=24.0.0", optional = true }
 typing-extensions = { version=">=4.6.0", python="<3.12" }
 numpydantic = { version=">=1.6.1", python = ">=3.9", optional = true}
 pandera = { version = ">=0.19.0", optional = true }
+narwhals = { version = ">=1.29.0", optional = true}
 polars = { version = ">=1.0.0", optional = true }
 polars-lts-cpu = { version = ">=1.0.0", optional = true }
 
@@ -161,7 +163,7 @@ black = ["black"]
 numpydantic = ["numpydantic"]
 shacl = ["pyshacl"]
 tests = ["black", "numpydantic", "pyshacl"]
-pandera-polars-lts = ["pandera", "polars-lts-cpu"]
+pandera-polars-lts = ["pandera", "polars-lts-cpu", "narwhals"]
 
 [tool.poetry.group.docs]
 optional = true

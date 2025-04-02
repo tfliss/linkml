@@ -38,11 +38,44 @@ TYPEMAP = {
         "xsd:anyURI": "str",
         "xsd:decimal": "float",
     },
+    "panderagen_polars_schema": {
+        "xsd:string": "pl.Utf8",
+        "xsd:integer": "pl.Int64",
+        "xsd:float": "pl.Float32",
+        "xsd:double": "pl.Float64",
+        "xsd:boolean": "pl.Boolean",
+        "xsd:dateTime": "pl.Datetime",
+        "xsd:date": "pl.Date",
+        "xsd:time": "pl.Time",
+        "xsd:anyURI": "pl.Utf8",
+        "xsd:decimal": "pl.Decimal",
+    },
+    "panderagen_arrow_schema": {
+        "xsd:string": "pa.string",
+        "xsd:integer": "pa.int64",
+        "xsd:float": "pa.Ffloat32",
+        "xsd:double": "pa.float64",
+        "xsd:boolean": "pa.boolean",
+        "xsd:dateTime": "pa.timestamp",
+        "xsd:date": "pa.date64",
+        "xsd:time": "pa.time64",
+        "xsd:anyURI": "pa.string",
+        "xsd:decimal": "pa.decimal128",
+    },
+}
+
+NESTED_TYPE_MAP = {
+    "panderagen_class_based": {"list": ""},
+    "panderagen_polars_schema": {"list": ""},
+    "panderagen_arrow_schema": {"list": ""},
 }
 
 
 class TemplateEnum(Enum):
     CLASS_BASED = "panderagen_class_based"
+    OBJECT_BASED = "panderagen_object_based"
+    POLARS_SCHEMA = "polars_schema"
+    PYARROW_SCHEMA = "pyarrow_schema"
 
 
 @dataclass
@@ -174,6 +207,8 @@ class PanderaGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixin,
                 ooclass.mixin = c.mixin
             if c.mixins:
                 ooclass.mixins = [(x) for x in c.mixins]
+            # if c.abstract:
+            #    ooclass.abstract = c.abstraccamelcased
             if c.is_a:
                 ooclass.is_a = self.get_class_name(c.is_a)
                 parent_slots = sv.class_slots(c.is_a)
