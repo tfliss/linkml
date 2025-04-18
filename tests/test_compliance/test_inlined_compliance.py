@@ -59,8 +59,6 @@ def test_inlined(framework, inlined, inlined_as_list, multivalued, foreign_key, 
     """
     if framework == SHACL:
         pytest.skip("TODO: RDF has no concept of inlining")
-    if framework == PANDERA_POLARS_CLASS:
-        pytest.skip("PanderaGen inlining is not implemented")
     inlined = bool(inlined)
     inlined_as_list = bool(inlined_as_list)
     multivalued = bool(multivalued)
@@ -352,8 +350,6 @@ def test_inlined_as_simple_dict(framework, name, attrs, data_name, values, is_va
     if name == "extra" and data_name == "t1":
         if framework != JSON_SCHEMA:
             pytest.skip("TODO: dataclasses-based methods are permissive")
-    if framework == PANDERA_POLARS_CLASS:
-        pytest.skip("PanderaGen does not support inlined as simplie dict")
     if data_name == "expanded_noval" and framework != JSON_SCHEMA:
         pytest.skip("TODO: dataclasses-based methods dislike empty values for simpledict")
     coerced = None
@@ -381,8 +377,6 @@ def test_inlined_as_simple_dict(framework, name, attrs, data_name, values, is_va
         elif framework in [OWL, SHACL]:
             expected_behavior = ValidationBehavior.INCOMPLETE
     if framework == PYDANTIC and data_name.startswith("expanded"):
-        expected_behavior = ValidationBehavior.INCOMPLETE
-    if framework == PANDERA_POLARS_CLASS:
         expected_behavior = ValidationBehavior.INCOMPLETE
     check_data(
         schema,

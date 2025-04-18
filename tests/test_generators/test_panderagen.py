@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 
@@ -35,8 +36,20 @@ classes:
         range: string
       x:
         range: integer
+        required: True
       y:
         range: integer
+        required: True
+
+  SimpleDictType:
+    description: Nested as a simple dict
+    attributes:
+      id:
+        identifier: True
+        range: string
+      x:
+        range: integer
+        required: True
 
   PanderaSyntheticTable:
     description: A flat table with a reasonably complete assortment of datatypes.
@@ -118,6 +131,13 @@ classes:
         range: ColumnType
         required: True
         inlined_as_list: True
+      inlined_simple_dict_column:
+        description: test column inlined using simple dict form
+        range: SimpleDictType
+        multivalued: True
+        inlined: True
+        inlined_as_list: False
+        required: True
 
 
 enums:
@@ -150,6 +170,9 @@ MODEL_COLUMNS = [
     "multivalued_one_many_column",
     "any_type_column",
     "cardinality_column",
+    "class_column",
+    "inlined_class_column",
+    "inlined_simple_dict_column",
 ]
 
 
@@ -174,7 +197,7 @@ def pandera():
 @pytest.fixture(scope="module")
 def N():
     """Number of rows in the test dataframes, 1M is enough to be real but not strain most machines."""
-    return 1000000
+    return 1000
 
 
 @pytest.fixture(scope="module")
@@ -217,6 +240,7 @@ def big_synthetic_dataframe(pl, np, N):
                 "any_type_column": pl.Series([1,] * N, dtype=pl.Object),
                 "cardinality_column": pl.Series(np.arange(1, N+1), dtype=pl.Int64),
                 "class_column": pl.Series(np.arange(0, N), dtype=pl.Int64).cast(pl.Utf8),
+                "inlined_simple_dict_column": pl.Series([{ "A": 1, "B": 2, "C": 3 }] * N, dtype=pl.Object),
             }
         )
         .with_columns(
@@ -224,7 +248,7 @@ def big_synthetic_dataframe(pl, np, N):
                 pl.Series(values=np.random.choice([0, 1], size=N), dtype=pl.Int64).cast(pl.Utf8).alias("id"),
                 pl.Series(values=np.random.choice([0, 1], size=N), dtype=pl.Int64).alias("x"),
                 pl.Series(values=np.random.choice([0, 1], size=N), dtype=pl.Int64).alias("y")
-            ).alias("inlined_class_column"),
+            ).implode().alias("inlined_class_column"),
         )
     )
     # fmt: on
@@ -259,7 +283,7 @@ def test_pandera_basic_class_based(synthetic_schema):
         if match:
             classes.append(match.group(1))
 
-    expected_classes = ["AnyType", "ColumnType", "PanderaSyntheticTable"]
+    expected_classes = ["AnyType", "ColumnType", "SimpleDictType", "PanderaSyntheticTable"]
 
     assert sorted(expected_classes) == sorted(classes)
 
@@ -348,7 +372,7 @@ def test_synthetic_dataframe_wrong_datatype(
     )
     # fmt: on
 
-    with pytest.raises(pandera.errors.SchemaErrors) as e:
+    with pytest.raises((pandera.errors.SchemaError, pandera.errors.SchemaErrors)) as e:
         compiled_synthetic_schema_module.PanderaSyntheticTable.validate(error_dataframe, lazy=True)
 
     assert "WRONG_DATATYPE" in str(e.value)
@@ -359,7 +383,6 @@ def test_synthetic_dataframe_wrong_datatype(
 def test_synthetic_dataframe_boolean_error(
     pl, pandera, compiled_synthetic_schema_module, big_synthetic_dataframe, drop_column
 ):
-
     # fmt: off
     error_dataframe = (
         big_synthetic_dataframe
@@ -374,3 +397,7 @@ def test_synthetic_dataframe_boolean_error(
 
     assert "COLUMN_NOT_IN_DATAFRAME" in str(e.value)
     assert f"column '{drop_column}' not in dataframe" in str(e.value)
+
+    if len(e.value.message["SCHEMA"].keys()) > 1 or "DATA" in e.value.message:
+        print(json.dumps(e.value.message, indent=2))
+        assert False

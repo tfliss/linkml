@@ -39,4 +39,22 @@ class {{cls.name}}(
         {%- endwith -%}
     {%- endfor %}
     }
+    _INLINE_FORM = {
+    {%- for field in cls.fields -%}
+        {%- with slot = field.source_slot -%}
+            {%- if slot.annotations['inline_form'] %}
+        "{{ field.name }}": "{{ slot.annotations['inline_form'] }}",
+{% endif -%}
+        {%- endwith -%}
+    {%- endfor %}
+    }
+    _INLINE_DETAILS = {
+    {%- for field in cls.fields -%}
+        {%- with slot = field.source_slot -%}
+            {%- if slot.annotations['inline_details'] %}
+        "{{ field.name }}": {{ slot.annotations['inline_details'] }},
+{% endif -%}
+        {%- endwith -%}
+    {%- endfor %}
+    }
 {% endmacro -%}
