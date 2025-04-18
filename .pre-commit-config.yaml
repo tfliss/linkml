@@ -25,5 +25,6 @@ repos:
   rev: v2.2.6
   hooks:
   - id: codespell
+    args: ["--skip=.git,*.pdf,*.svg,./tests,pyproject.toml,*.dill,poetry.lock,notebooks/DistributedModels.ipynb"]
     additional_dependencies:
       - tomli
