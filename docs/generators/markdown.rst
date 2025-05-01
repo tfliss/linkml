@@ -74,6 +74,5 @@ Command Line
 Code
 ^^^^
 
-
 .. autoclass:: MarkdownGenerator
     :members: serialize
