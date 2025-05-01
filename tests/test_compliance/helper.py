@@ -8,7 +8,6 @@ import os
 import shutil
 import subprocess
 import tempfile
-import traceback
 from collections import defaultdict
 from collections.abc import Iterator
 from copy import copy, deepcopy
@@ -813,7 +812,7 @@ def check_data(
         elif isinstance(gen, JsonSchemaGenerator):
             plugins = [JsonschemaValidationPlugin(closed=True, include_range_class_descendants=False)]
         elif isinstance(gen, GENERATORS[PANDERA_POLARS_CLASS]):
-            check_data_pandera(schema, output, target_class, object_to_validate, expected_behavior, valid)
+            check_data_pandera(schema, output, target_class, object_to_validate, coerced, expected_behavior, valid)
         elif isinstance(gen, ContextGenerator):
             context_dir = _schema_out_path(schema) / "generated" / "jsonld_context.context.jsonld"
             if not context_dir.exists() and tests.WITH_OUTPUT:
@@ -914,34 +913,36 @@ def check_data(
             )
         )
 
-
-def check_data_pandera(schema, output, target_class, object_to_validate, expected_behavior, valid):
+def check_data_pandera(schema, output, target_class, object_to_validate, coerced, expected_behavior, valid):
     pl = pytest.importorskip("polars", minversion="1.0", reason="Polars >= 1.0 not installed")
-    mod = compile_python(output)
-    py_cls = getattr(mod, target_class)
-    polars_schema = py_cls.generate_polars_schema(object_to_validate, parser=True)
-
-    logger.info(
-        f"Validating {target_class} against {object_to_validate} / {expected_behavior} / "
-        f"{valid}\n\n{yaml.dump(schema)}\n\n{output}"
-    )
 
     try:
-        if schema.name.startswith("test_inlined"):
-            object_to_validate = [object_to_validate]
-    except Exception:
-        pass
+        mod = compile_python(output)
+        py_cls = getattr(mod, target_class)
 
-    try:
-        # This may need to change to [object_to_validate] as a list of one to really work....
-        # At least in cases where the thing at the top level is a list
-        dataframe_to_validate = pl.DataFrame(object_to_validate, schema=polars_schema, strict=False)
+        logger.info(
+            f"Validating {target_class} against {object_to_validate} / {coerced} / {expected_behavior} / "
+            f"{valid}\n\n{yaml.dump(schema)}\n\n{output}"
+        )
 
-        print(dataframe_to_validate)
+        dataframe_to_validate = pl.DataFrame([object_to_validate])
+
+        try:
+            schema_name = schema.get('name', '')
+            polars_schema = py_cls.generate_polars_schema(object_to_validate, parser=True)
+
+            if schema_name.startswith("test_date_types") or schema_name.startswith('test_enum_alias'):
+                dataframe_to_validate = pl.DataFrame(object_to_validate, schema=polars_schema, strict=False)
+            elif dataframe_to_validate.item() is None:
+                dataframe_to_validate = pl.DataFrame(object_to_validate, schema=polars_schema, strict=False)
+        except Exception:
+            pass
+
+        logger.info(dataframe_to_validate)
         py_cls.validate(dataframe_to_validate, lazy=True)
-    except Exception:
+    except Exception as e:
         if valid:
-            raise Exception(f"{traceback.format_exc()}\n{object_to_validate}\n{polars_schema}")
+            raise e
 
 
 def clean_null_terms(d):

@@ -133,15 +133,19 @@ class PanderaGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixin,
     def map_type(self, t: TypeDefinition) -> str:
         logger.info(f"type_map definition: {t}")
 
+        typ = None
+
         if t.uri:
-            # only return a Integer, Double Float when required == false
             typ = self.uri_type_map(t.uri)
-            return typ
+            if typ is None:
+                typ = self.map_type(self.schemaview.get_type(t.typeof))
         elif t.typeof:
             typ = self.map_type(self.schemaview.get_type(t.typeof))
-            return typ
-        else:
+
+        if typ is None:
             raise ValueError(f"{t} cannot be mapped to a type")
+
+        return typ
 
     def load_template(self, template_filename):
         jinja_env = Environment(loader=PackageLoader("linkml.generators.panderagen", self.template_path))
@@ -222,12 +226,17 @@ class PanderaGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixin,
         for c in self.ordered_classes():
             cn = c.name
             safe_cn = camelcase(cn)
+            annotations = {}
+            identifier_or_key_slot = self.get_identifier_or_key_slot(cn)
+            if identifier_or_key_slot:
+                annotations["identifier_key_slot"] = identifier_or_key_slot.name
             ooclass = OOClass(
                 name=safe_cn,
                 description=c.description,
                 package=self.package,
                 fields=[],
                 source_class=c,
+                annotations=annotations,
             )
             classes.append(ooclass)
             if c.mixin:

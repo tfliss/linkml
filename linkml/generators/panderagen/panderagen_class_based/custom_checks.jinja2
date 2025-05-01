@@ -15,6 +15,8 @@
     def check_nested_struct_{{ field.name }}(cls, data: PolarsData):
         {% if slot.annotations['inline_form'] == 'inline_list_dict' %}
         return cls._check_nested_struct({{ slot.annotations['reference_class'] }}, data)
+        {% elif slot.annotations['inline_form'] == 'inline_collection_dict' %}
+        return cls._check_collection_struct({{ slot.annotations['reference_class'] }}, data)
         {% else %}
         return cls._check_nested_list_struct({{ slot.annotations['reference_class'] }}, data)
         {% endif %}

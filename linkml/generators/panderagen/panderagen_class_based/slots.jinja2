@@ -14,11 +14,11 @@
 {%- endmacro -%}
 
 {%- macro id_slot_name_class_variable(cls) -%}
-    {%- for field in cls.fields -%}
-        {%- if field.source_slot.identifier %}
-    _id_name : str = '{{ field.name }}'
-        {% endif -%}
-    {%- endfor -%}
+    {%- if cls.annotations['identifier_key_slot'] %}
+    _id_name : str = '{{ cls.annotations['identifier_key_slot'] }}'
+    {%- else %}
+    _id_name : str = None
+{% endif %}
 {%- endmacro -%}
 
 {%- macro render_slot(field) -%}
@@ -29,14 +29,13 @@
         {%- endif -%}
        {{field.range}}
         {%- if (slot.required is none or slot.required is false) and (slot.identifier is not true) -%}
-            {{ '] ' }}
+            {{ ']' }}
         {%- endif -%}
-        = pla.Field(
+        {{ ' =' }} pla.Field(
             {{- constraint_parameters(field, slot) -}}
             {{- enum_macros.enum_parameter(slot) -}}
         )
         {%- if slot.description %}
-
     """
     {{ slot.description }}
     """
