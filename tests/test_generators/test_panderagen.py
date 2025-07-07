@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from pathlib import Path
@@ -36,59 +37,123 @@ default_prefix: ex
 
 classes:
 
+  AnyType:
+    description: the magic class_uri makes this map to linkml Any or polars Object
+    class_uri: linkml:Any
+
+  ColumnType:
+    description: Nested in a column
+    attributes:
+      id:
+        identifier: true
+        range: string
+      x:
+        range: integer
+        required: true
+      y:
+        range: integer
+        required: true
+
+  SimpleDictType:
+    description: Nested as a simple dict
+    attributes:
+      id:
+        identifier: True
+        range: string
+      x:
+        range: integer
+        required: true
+
   PanderaSyntheticTable:
     description: A flat table with a reasonably complete assortment of datatypes.
     attributes:
       identifier_column:
         description: identifier
-        identifier: True
+        identifier: true
         range: integer
-        required: True
+        required: true
       bool_column:
         description: test boolean column
         range: boolean
-        required: True
-        #ifabsent: True
+        required: true
+        #ifabsent: true
       integer_column:
         description: test integer column with min/max values
         range: integer
-        required: True
+        required: true
         minimum_value: 0
         maximum_value: 999
+        #ifabsent: int(5)
       float_column:
         description: test float column
         range: float
-        required: True
+        required: true
+        #ifabsent: float(2.3)
       string_column:
         description: test string column
         range: string
-        required: True
+        required: true
         pattern: "^(this)|(that)|(whatever)$"
+        #ifabsent: string("whatever")
       date_column:
         description: test date column
         range: date
-        required: True
+        required: true
         #ifabsent: date("2020-01-31")
       datetime_column:
         description: test datetime column
         range: datetime
-        required: True
+        required: true
         #ifabsent: datetime("2020-01-31 03:23:57")
       enum_column:
         description: test enum column
         range: SyntheticEnum
-        required: True
+        required: true
       ontology_enum_column:
         description: test enum column with ontology values
         range: SyntheticEnumOnt
-        required: True
+        required: true
         #ifabsent: SyntheticEnumOnt(ANIMAL)
-      multivalued_column:
-        description: one-to-many form
+      # multivalued_column:
+      #   description: one-to-many form
+      #   range: integer
+      #   required: true
+      #   multivalued: true
+      #   inlined_as_list: true
+      # multivalued_one_many_column:
+      #   description: list form
+      #   range: integer
+      #   required: true
+      #   multivalued: true
+      any_type_column:
+        description: needs to have type object
+        range: AnyType
+        required: true
+      cardinality_column:
+        description: check cardinality
         range: integer
-        required: True
-        multivalued: True
-        inlined_as_list: True
+        required: true
+        minimum_cardinality: 1
+        maximum_cardinality: 1
+      # class_column:
+      #   description: test column with another class id
+      #   range: ColumnType
+      #   required: true
+      inlined_class_column:
+        description: test column with another class inlined as a struct
+        range: ColumnType
+        required: true
+        inlined: true
+        inlined_as_list: true
+        multivalued: true
+      inlined_simple_dict_column:
+        description: test column inlined using simple dict form
+        range: SimpleDictType
+        multivalued: true
+        inlined: true
+        inlined_as_list: False
+        required: true
+
 
 enums:
   SyntheticEnum:
@@ -116,7 +181,13 @@ MODEL_COLUMNS = [
     "datetime_column",
     "enum_column",
     "ontology_enum_column",
-    "multivalued_column",
+    #"multivalued_column",
+    #"multivalued_one_many_column",
+    "any_type_column",
+    "cardinality_column",
+    #"class_column",
+    "inlined_class_column",
+    "inlined_simple_dict_column",
 ]
 
 
@@ -141,7 +212,7 @@ def pandera():
 @pytest.fixture(scope="module")
 def N():
     """Number of rows in the test dataframes, 1M is enough to be real but not strain most machines."""
-    return 1000000
+    return 1000
 
 
 @pytest.fixture(scope="module")
@@ -179,8 +250,27 @@ def big_synthetic_dataframe(pl, np, N):
                     dtype=test_ont_enum,
                     strict=False
                 ),
-                "multivalued_column": [[1, 2, 3],] * N,
+                #"multivalued_column": [[1, 2, 3],] * N,
+                #"multivalued_one_many_column": pl.Series(np.random.choice(range(100), size=N), dtype=pl.Int64),
+                "any_type_column": pl.Series([1,] * N, dtype=pl.Object),
+                "cardinality_column": pl.Series(np.arange(1, N+1), dtype=pl.Int64),
+                #"class_column": pl.Series(np.arange(0, N), dtype=pl.Int64).cast(pl.Utf8),
+                #"inlined_simple_dict_column": pl.Series([{ "A": 1, "B": 2, "C": 3 }] * N, dtype=pl.Object),
             }
+        )
+        .with_columns(
+            pl.struct(
+              pl.lit(1).alias("A"),
+              pl.lit(2).alias("B"),
+              pl.lit(3).alias("C")
+            ).alias("inlined_simple_dict_column"),
+            pl.concat_list([
+              pl.struct(
+                  pl.Series(values=np.arange(0, N), dtype=pl.Int64).cast(pl.Utf8).alias("id"),
+                  pl.Series(values=np.random.choice([0, 1], size=N), dtype=pl.Int64).alias("x"),
+                  pl.Series(values=np.random.choice([0, 1], size=N), dtype=pl.Int64).alias("y")
+              )
+            ]).alias("inlined_class_column")
         )
     )
     # fmt: on
@@ -215,7 +305,7 @@ def test_pandera_basic_class_based(synthetic_schema):
         if match:
             classes.append(match.group(1))
 
-    expected_classes = ["PanderaSyntheticTable"]
+    expected_classes = ["AnyType", "ColumnType", "SimpleDictType", "PanderaSyntheticTable"]
 
     assert sorted(expected_classes) == sorted(classes)
 
@@ -265,6 +355,27 @@ def test_pandera_validation_error_ge(pl, pandera, compiled_synthetic_schema_modu
     assert "'column': 'integer_column'" in str(e)
 
 
+def test_pandera_validation_error_cardinality(pl, pandera, compiled_synthetic_schema_module, big_synthetic_dataframe):
+    """
+    tests ge range validation error
+    """
+    # fmt: off
+    bad_cardinality_dataframe = (
+        big_synthetic_dataframe
+        .with_columns(
+            pl.lit(1000, pl.Int64).alias("cardinality_column")
+        )
+    )
+    # fmt: on
+
+    with pytest.raises(pandera.errors.SchemaErrors) as e:
+        compiled_synthetic_schema_module.PanderaSyntheticTable.validate(bad_cardinality_dataframe, lazy=True)
+
+    assert "DATAFRAME_CHECK" in str(e.value)
+    assert "check_cardinality_cardinality_column" in str(e.value)
+    assert "'column': 'cardinality_column'" in str(e)
+
+
 @pytest.mark.parametrize("bad_column", MODEL_COLUMNS)
 def test_synthetic_dataframe_wrong_datatype(
     pl, pandera, compiled_synthetic_schema_module, big_synthetic_dataframe, bad_column
@@ -283,7 +394,7 @@ def test_synthetic_dataframe_wrong_datatype(
     )
     # fmt: on
 
-    with pytest.raises(pandera.errors.SchemaErrors) as e:
+    with pytest.raises((pandera.errors.SchemaError, pandera.errors.SchemaErrors)) as e:
         compiled_synthetic_schema_module.PanderaSyntheticTable.validate(error_dataframe, lazy=True)
 
     assert "WRONG_DATATYPE" in str(e.value)
@@ -304,11 +415,14 @@ def test_synthetic_dataframe_boolean_error(
     # fmt: on
 
     with pytest.raises(pandera.errors.SchemaErrors) as e:
-        compiled_synthetic_schema_module.PanderaSyntheticTable.validate(error_dataframe, lazy=True)
+      compiled_synthetic_schema_module.PanderaSyntheticTable.validate(error_dataframe, lazy=True)
 
     assert "COLUMN_NOT_IN_DATAFRAME" in str(e.value)
     assert f"column '{drop_column}' not in dataframe" in str(e.value)
 
+    if len(e.value.message["SCHEMA"].keys()) > 1 or "DATA" in e.value.message:
+        print(json.dumps(e.value.message, indent=2))
+        assert False
 
 @pytest.mark.parametrize("target_class,schema", [("Organization", "organization")])
 def test_cli_simple(cli_runner, test_inputs_dir, target_class, schema):

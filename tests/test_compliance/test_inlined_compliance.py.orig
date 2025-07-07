@@ -59,6 +59,8 @@ def test_inlined(framework, inlined, inlined_as_list, multivalued, foreign_key, 
     """
     if framework == SHACL:
         pytest.skip("TODO: RDF has no concept of inlining")
+    if framework == PANDERA_POLARS_CLASS:
+        pytest.skip("PanderaGen inlining is not implemented")
     inlined = bool(inlined)
     inlined_as_list = bool(inlined_as_list)
     multivalued = bool(multivalued)
@@ -258,8 +260,17 @@ def test_inlined(framework, inlined, inlined_as_list, multivalued, foreign_key, 
     if framework in [SQL_DDL_SQLITE, SHACL] and not is_valid:
         # inlining has no cognate in relational and RDF
         implementation_status = ValidationBehavior.NOT_APPLICABLE
+<<<<<<< HEAD
     if framework == PANDERA_POLARS_CLASS and (not inlined or foreign_key):
         implementation_status = ValidationBehavior.INCOMPLETE
+    print("YIIIII")
+    print(request.node.callspec.id)
+    print(inst)
+    print(f"VALID: {is_valid}")
+=======
+    if framework == PANDERA_POLARS_CLASS:
+        implementation_status = ValidationBehavior.INCOMPLETE
+>>>>>>> main
     check_data(
         schema,
         data,
