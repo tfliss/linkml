@@ -30,6 +30,7 @@ TYPEMAP = {
     "panderagen_class_based": {
         "xsd:string": "str",
         "xsd:integer": "int",
+        "xsd:int": "int",
         "xsd:float": "float",
         "xsd:double": "float",
         "xsd:boolean": "bool",
@@ -41,6 +42,8 @@ TYPEMAP = {
     },
     "panderagen_polars_schema": {
         "xsd:string": "pl.Utf8",
+        "xsd:normalizedString": "pl.Utf8",
+        "xsd:int": "pl:Int32",
         "xsd:integer": "pl.Int64",
         "xsd:float": "pl.Float32",
         "xsd:double": "pl.Float64",
@@ -54,7 +57,8 @@ TYPEMAP = {
     "panderagen_arrow_schema": {
         "xsd:string": "pa.string",
         "xsd:integer": "pa.int64",
-        "xsd:float": "pa.Ffloat32",
+        "xsd:int": "pa.int32",
+        "xsd:float": "pa.float32",
         "xsd:double": "pa.float64",
         "xsd:boolean": "pa.boolean",
         "xsd:dateTime": "pa.timestamp",
@@ -212,8 +216,7 @@ class PanderaGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixin,
 
     def render(self) -> OODocument:
         """
-        Implementation in progress
-        :return:
+        Create a data structure ready to pass to the serialization templates.
         """
         sv: SchemaView = self.schemaview
 
@@ -261,18 +264,18 @@ class PanderaGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixin,
         return oodoc
 
 
-@shared_arguments(PanderaGenerator)
+# @shared_arguments(PanderaGenerator)
 @click.option("--package", help="Package name where relevant for generated class files")
 @click.option("--template-path", help="Optional jinja2 template directory within module")
 @click.option("--template-file", help="Optional jinja2 template to use for class generation")
 @click.version_option(__version__, "-V", "--version")
+@click.argument("yamlfile")
 @click.command(name="gen-pandera")
 def cli(
     yamlfile,
     package=None,
     template_path=None,
     template_file=None,
-    slots=True,
     **args,
 ):
     if template_path is not None and template_path not in TYPEMAP:
@@ -284,7 +287,6 @@ def cli(
         package=package,
         template_path=template_path,
         template_file=template_file,
-        gen_slots=slots,
         **args,
     )
 

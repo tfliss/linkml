@@ -207,7 +207,6 @@ class SlotGeneratorMixin:
         else:
             raise Exception(f"Unknown range {range}")
 
-
         return OOField(
             name=safe_sn,
             source_slot=slot,
