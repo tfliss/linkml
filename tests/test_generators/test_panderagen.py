@@ -530,6 +530,7 @@ def test_inlined_simple_dict_nested_range_type_error(pandera, compiled_synthetic
     compiled_synthetic_schema_module.PanderaSyntheticTable.validate(df_with_nested_simple_dict_type_error, lazy=True)
 
   error_details = e.value.message['DATA']['CHECK_ERROR'][0]
+  logger.info(f'Details for expected error: {error_details}')
 
   assert error_details['column'] == 'inlined_simple_dict_column'
   assert error_details['check'] == 'check_nested_struct_inlined_simple_dict_column'
@@ -549,12 +550,13 @@ def test_inlined_dict_nested_range_type_error(pandera, compiled_synthetic_schema
     compiled_synthetic_schema_module.PanderaSyntheticTable.validate(df_with_nested_dict_type_error, lazy=True)
 
   error_details = e.value.message['DATA']['CHECK_ERROR'][0]
+  logger.info(f'Details for expected error: {error_details}')
 
   assert error_details['column'] == 'inlined_class_column'
   assert error_details['check'] == 'check_nested_struct_inlined_class_column'
   assert error_details['error'] == 'SchemaError("expected column \'x\' to have type Int64, got Float64")'
 
-@pytest.mark.xfail(reason="Need to convert map_elements like in the other checks.")
+
 def test_inlined_list_nested_range_type_error(pandera, compiled_synthetic_schema_module, big_synthetic_dataframe, invalid_inlined_as_list_column_expression):
   """Change the simple dict column values from Int64 to Float64
   """
@@ -569,9 +571,10 @@ def test_inlined_list_nested_range_type_error(pandera, compiled_synthetic_schema
     compiled_synthetic_schema_module.PanderaSyntheticTable.validate(df_with_nested_dict_type_error, lazy=True)
 
   error_details = e.value.message['DATA']['CHECK_ERROR'][0]
+  logger.info(f'Details for expected error: {error_details}')
 
   assert error_details['column'] == 'inlined_as_list_column'
-  assert error_details['check'] == 'check_nested_struct_inlined_class_column'
+  assert error_details['check'] == 'check_nested_struct_inlined_as_list_column'
   assert error_details['error'] == 'SchemaError("expected column \'x\' to have type Int64, got Float64")'
 
 @pytest.mark.parametrize("target_class,schema", [("Organization", "organization")])

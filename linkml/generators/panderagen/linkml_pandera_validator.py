@@ -8,6 +8,7 @@ from pandera.api.polars.types import PolarsData
 import pandera
 from linkml.generators.panderagen.transforms.simple_dict_model_transform import SimpleDictModelTransform
 from linkml.generators.panderagen.transforms.collection_dict_model_transform import CollectionDictModelTransform
+from linkml.generators.panderagen.transforms.list_dict_model_transform import ListDictModelTransform
 
 
 def handle_validation_exceptions(func):
@@ -107,22 +108,6 @@ class LinkmlPanderaValidator:
         return data.lazyframe.select(pl.lit(True))
 
     @classmethod
-    def _unnest_list_struct(cls, column_name: str, df):
-        """Use this in a custom check. Pass the nested model as pandera_model."""
-
-        # fmt: off
-        unnested_column = (
-            df
-            .select(column_name)
-            .filter(pl.col(column_name).list.len() > 0) # see: https://github.com/pola-rs/polars/issues/14381
-            .explode(column_name)
-            .unnest(column_name)
-        )
-        # fmt: on
-
-        return unnested_column
-
-    @classmethod
     @handle_validation_exceptions
     def _check_collection_struct(cls, pandera_model: pla.DataFrameModel, data: PolarsData):
         column_name = data.key
@@ -147,14 +132,22 @@ class LinkmlPanderaValidator:
     def _check_nested_list_struct(cls, pandera_model: pla.DataFrameModel, data: PolarsData):
         """Use this in a custom check. Pass the nested model as pandera_model."""
         column_name = data.key
+        nested_cls = cls.get_nested_range(column_name)
+        
+        df = ListDictModelTransform.prepare_dataframe(data, column_name, nested_cls)
 
         try:
-            unnested_column = cls._unnest_list_struct(column_name, data.lazyframe).collect().lazy()
+            df = (
+                df.lazy()
+                .filter(pl.col(column_name).list.len() > 0)
+                .explode(column_name)
+                .unnest(column_name)
+                .collect()
+            )
         except (pl.exceptions.PanicException, Exception):
-            unnested_column = cls._unnest_struct(column_name, data.lazyframe).collect().lazy()
+            df = cls._unnest_struct(column_name, data.lazyframe).collect()
 
-        nested_cls = cls.get_nested_range(column_name)
-        nested_cls.validate(unnested_column, lazy=True)
+        nested_cls.validate(df)
         return data.lazyframe.select(pl.lit(True))
 
 
