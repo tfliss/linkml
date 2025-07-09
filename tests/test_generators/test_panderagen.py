@@ -23,6 +23,30 @@ def cli_runner():
 
 
 @pytest.fixture(scope="module")
+def np():
+    """The numpy package is optional so use fixtures and importorskip to only run tests when it's installed"""
+    return pytest.importorskip("numpy", minversion="1.0", reason="Polars >= 1.0 not installed")
+
+
+@pytest.fixture(scope="module")
+def pl():
+    """The PolaRS package is optional, so use fixtures and importorskip to only run tests when it's installed"""
+    return pytest.importorskip("polars", minversion="1.0", reason="Polars >= 1.0 not installed")
+
+
+@pytest.fixture(scope="module")
+def pandera():
+    """The pandera package is optional, so use fixtures and importorskip to only run tests when it's installed"""
+    return pytest.importorskip("pandera.polars", reason="Pandera not installed")
+
+
+@pytest.fixture(scope="module")
+def N():
+    """Number of rows in the test dataframes, 1M is enough to be real but not strain most machines."""
+    return 1000
+
+
+@pytest.fixture(scope="module")
 def synthetic_flat_dataframe_model():
     return """\
 id: https://w3id.org/linkml/examples/pandera_constraints
@@ -144,14 +168,21 @@ classes:
         range: ColumnType
         required: true
         inlined: true
-        inlined_as_list: true
+        inlined_as_list: false
+        multivalued: true
+      inlined_as_list_column:
+        description: test column with another class inlined as a list
+        range: ColumnType
+        required: true
+        inlined: true
+        inlined_as_list: true 
         multivalued: true
       inlined_simple_dict_column:
         description: test column inlined using simple dict form
         range: SimpleDictType
         multivalued: true
         inlined: true
-        inlined_as_list: False
+        inlined_as_list: false
         required: true
 
 
@@ -187,36 +218,106 @@ MODEL_COLUMNS = [
     "cardinality_column",
     #"class_column",
     "inlined_class_column",
+    "inlined_as_list_column",
     "inlined_simple_dict_column",
 ]
 
+@pytest.fixture(scope="module")
+def valid_inlined_dict_column_expression(pl):
+    """synthetic data that conforms to the inlined_class_column schema
+       using polars expression API.
+    """
+    return pl.struct(
+      pl.struct(
+          pl.lit("thing_one").alias("id"),
+          pl.lit(1111, dtype = pl.Int64).alias("x"),
+          pl.lit(2222, dtype=pl.Int64).alias("y")
+      ).alias("thing_one"),
+      pl.struct(
+          pl.lit("thing_two").alias("id"),
+          pl.lit(3333, dtype = pl.Int64).alias("x"),
+          pl.lit(4444, dtype=pl.Int64).alias("y")
+      ).alias("thing_two"),
+    )
 
 @pytest.fixture(scope="module")
-def np():
-    """The numpy package is optional? so use fixtures and importorskip to only run tests when it's installed"""
-    return pytest.importorskip("numpy", minversion="1.0", reason="Polars >= 1.0 not installed")
+def invalid_inlined_dict_column_expression(pl):
+    """synthetic data with invalid float datatypes that does not conform to the inlined_class_column schema
+       using polars expression API.
+    """
+    return pl.struct(
+        pl.struct(
+            pl.lit("thing_one").alias("id"),
+            pl.lit(1111.0, dtype = pl.Float64).alias("x"),
+            pl.lit(2222.0, dtype=pl.Float64).alias("y")
+        ).alias("thing_one"),
+        pl.struct(
+            pl.lit("thing_two").alias("id"),
+            pl.lit(3333.0, dtype = pl.Float64).alias("x"),
+            pl.lit(4444.0, dtype=pl.Float64).alias("y")
+        ).alias("thing_two"),
+      )
+
+@pytest.fixture(scope="module")
+def valid_simple_dict_column_expression(pl):
+    """synthetic data that conforms to the inlined_simple_dict_column schema
+       using polars expression API.
+    """
+    # fmt: off
+    return pl.struct(
+      pl.lit(1).alias("A"),
+      pl.lit(2).alias("B"),
+      pl.lit(3).alias("C")
+    )
+    # fmt: on
+
+@pytest.fixture(scope="module")
+def invalid_simple_dict_column_expression(pl):
+    """synthetic data with float values that does not conform to the inlined_simple_dict_column schema
+       using polars expression API.
+    """
+    # fmt: off
+    return pl.struct(
+      pl.lit(1.0).alias("A"),
+      pl.lit(2.0).alias("B"),
+      pl.lit(3.0).alias("C")
+    )
+    # fmt: on
+
+@pytest.fixture(scope="module")
+def valid_inlined_as_list_column_expression(pl, np, N):
+    """synthetic data that conforms to the inlined_as_list_column schema
+       using polars expression API.
+    """
+    # fmt: off
+    return pl.concat_list([
+      pl.struct(
+          pl.Series(values=np.arange(0, N), dtype=pl.Int64).cast(pl.Utf8).alias("id"),
+          pl.Series(values=np.random.choice([0, 1], size=N), dtype=pl.Int64).alias("x"),
+          pl.Series(values=np.random.choice([0, 1], size=N), dtype=pl.Int64).alias("y")
+      )
+    ])
+    # fmt: on
 
 
 @pytest.fixture(scope="module")
-def pl():
-    """The PolaRS package is optional, so use fixtures and importorskip to only run tests when it's installed"""
-    return pytest.importorskip("polars", minversion="1.0", reason="Polars >= 1.0 not installed")
+def invalid_inlined_as_list_column_expression(pl, np, N):
+    """synthetic data that does not conforms to the inlined_as_list_column schema
+       using polars expression API.
+    """
+    # fmt: off
+    return pl.concat_list([
+      pl.struct(
+          pl.Series(values=np.arange(0, N), dtype=pl.Int64).cast(pl.Utf8).alias("id"),
+          pl.Series(values=np.random.choice([0.0, 1.0], size=N), dtype=pl.Float64).alias("x"),
+          pl.Series(values=np.random.choice([0.1, 1.0], size=N), dtype=pl.Float64).alias("y")
+      )
+    ])
+    # fmt: on
 
 
 @pytest.fixture(scope="module")
-def pandera():
-    """The pandera package is optional, so use fixtures and importorskip to only run tests when it's installed"""
-    return pytest.importorskip("pandera.polars", reason="Pandera not installed")
-
-
-@pytest.fixture(scope="module")
-def N():
-    """Number of rows in the test dataframes, 1M is enough to be real but not strain most machines."""
-    return 1000
-
-
-@pytest.fixture(scope="module")
-def big_synthetic_dataframe(pl, np, N):
+def big_synthetic_dataframe(pl, np, N, valid_inlined_dict_column_expression, valid_simple_dict_column_expression, valid_inlined_as_list_column_expression):
     """Construct a reasonably sized dataframe that complies with the PanderaSyntheticTable model"""
     test_enum = pl.Enum(["ANIMAL", "VEGETABLE", "MINERAL"])
     test_ont_enum = pl.Enum(["fiction", "non fiction"])
@@ -259,18 +360,9 @@ def big_synthetic_dataframe(pl, np, N):
             }
         )
         .with_columns(
-            pl.struct(
-              pl.lit(1).alias("A"),
-              pl.lit(2).alias("B"),
-              pl.lit(3).alias("C")
-            ).alias("inlined_simple_dict_column"),
-            pl.concat_list([
-              pl.struct(
-                  pl.Series(values=np.arange(0, N), dtype=pl.Int64).cast(pl.Utf8).alias("id"),
-                  pl.Series(values=np.random.choice([0, 1], size=N), dtype=pl.Int64).alias("x"),
-                  pl.Series(values=np.random.choice([0, 1], size=N), dtype=pl.Int64).alias("y")
-              )
-            ]).alias("inlined_class_column")
+            valid_simple_dict_column_expression.alias("inlined_simple_dict_column"),
+            valid_inlined_as_list_column_expression.alias("inlined_as_list_column"),
+            valid_inlined_dict_column_expression.alias("inlined_class_column")
         )
     )
     # fmt: on
@@ -424,17 +516,13 @@ def test_synthetic_dataframe_boolean_error(
         print(json.dumps(e.value.message, indent=2))
         assert False
 
-def test_nested(pl, np, N, pandera, compiled_synthetic_schema_module, big_synthetic_dataframe):
+def test_inlined_simple_dict_nested_range_type_error(pandera, compiled_synthetic_schema_module, big_synthetic_dataframe, invalid_simple_dict_column_expression):
   """Change the simple dict column values from Int64 to Float64
   """
   df_with_nested_simple_dict_type_error = (
     big_synthetic_dataframe
     .with_columns(
-        pl.struct(
-          pl.Series(np.arange(0.0, float(N), 1.0), dtype=pl.Float64).alias("A"),
-          pl.Series(np.arange(0.0, 1.0, 1.0/float(N)), dtype=pl.Float64).alias("B"),
-          pl.Series(np.arange(0.0, float(N)*10.0, 10.0), dtype=pl.Float64).alias("C"),
-        ).alias("inlined_simple_dict_column")
+      invalid_simple_dict_column_expression.alias("inlined_simple_dict_column")
     )
   )
 
@@ -445,6 +533,45 @@ def test_nested(pl, np, N, pandera, compiled_synthetic_schema_module, big_synthe
 
   assert error_details['column'] == 'inlined_simple_dict_column'
   assert error_details['check'] == 'check_nested_struct_inlined_simple_dict_column'
+  assert error_details['error'] == 'SchemaError("expected column \'x\' to have type Int64, got Float64")'
+
+def test_inlined_dict_nested_range_type_error(pandera, compiled_synthetic_schema_module, big_synthetic_dataframe, invalid_inlined_dict_column_expression):
+  """Change the simple dict column values from Int64 to Float64
+  """
+  df_with_nested_dict_type_error = (
+    big_synthetic_dataframe
+    .with_columns(
+      invalid_inlined_dict_column_expression.alias("inlined_class_column")
+    )
+  )
+
+  with pytest.raises(pandera.errors.SchemaErrors) as e:
+    compiled_synthetic_schema_module.PanderaSyntheticTable.validate(df_with_nested_dict_type_error, lazy=True)
+
+  error_details = e.value.message['DATA']['CHECK_ERROR'][0]
+
+  assert error_details['column'] == 'inlined_class_column'
+  assert error_details['check'] == 'check_nested_struct_inlined_class_column'
+  assert error_details['error'] == 'SchemaError("expected column \'x\' to have type Int64, got Float64")'
+
+@pytest.mark.xfail(reason="Need to convert map_elements like in the other checks.")
+def test_inlined_list_nested_range_type_error(pandera, compiled_synthetic_schema_module, big_synthetic_dataframe, invalid_inlined_as_list_column_expression):
+  """Change the simple dict column values from Int64 to Float64
+  """
+  df_with_nested_dict_type_error = (
+    big_synthetic_dataframe
+    .with_columns(
+      invalid_inlined_as_list_column_expression.alias("inlined_as_list_column")
+    )
+  )
+
+  with pytest.raises(pandera.errors.SchemaErrors) as e:
+    compiled_synthetic_schema_module.PanderaSyntheticTable.validate(df_with_nested_dict_type_error, lazy=True)
+
+  error_details = e.value.message['DATA']['CHECK_ERROR'][0]
+
+  assert error_details['column'] == 'inlined_as_list_column'
+  assert error_details['check'] == 'check_nested_struct_inlined_class_column'
   assert error_details['error'] == 'SchemaError("expected column \'x\' to have type Int64, got Float64")'
 
 @pytest.mark.parametrize("target_class,schema", [("Organization", "organization")])

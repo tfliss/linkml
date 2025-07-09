@@ -1,84 +1,29 @@
 import inspect
+from functools import wraps
 
 import narwhals as nw
 import pandera.polars as pla
 import polars as pl
 from pandera.api.polars.types import PolarsData
 import pandera
+from linkml.generators.panderagen.transforms.simple_dict_model_transform import SimpleDictModelTransform
+from linkml.generators.panderagen.transforms.collection_dict_model_transform import CollectionDictModelTransform
 
 
-class SimpleDictModelTransform:
-    """This class assists in converting a LinkML 'simple dict' inline column
-       into a form that is better for representing in a PolaRS dataframe and
-       validating with a Pandera model.
-    """
-
-    def __init__(self, polars_schema, id_col, other_col):
-        self.polars_schema = polars_schema
-        """A polars schema representing a simple dict column"""        
-
-        self.id_col = id_col
-        """The ID column in the sense of a LinkML inline simple dict"""
-        
-        self.other_col = other_col
-        """The 'other' column in the sense of a LinkML inline simple dict"""
-        
-        self.id_col_type = None
-        self.other_col_type = None
-        self.polars_struct = self._build_polars_struct()
-        """A pl.Struct representing the schema of the other range."""
-
-    def _build_polars_struct_simple(self):
-        """Handles the two column (id, other) form of the simple dict
-        """
-        self.id_col_type = self.polars_schema.columns[self.id_col].dtype.type
-        self.other_col_type = self.polars_schema.columns[self.other_col].dtype.type
-
-        return pl.Struct({self.id_col: self.id_col_type, self.other_col: self.other_col_type})
-
-    def _build_polars_struct_complex(self):
-        """Handles the non-two-column simple dict cases.
-        """
-        struct_items = {}
-        for k, v in self.polars_schema.columns.items():
-            if v.dtype.type == pl.Object:
-                v.dtype.type = pl.Struct
-            else:
-                struct_items[k] = v.dtype.type
-        return pl.Struct(struct_items)
-
-    def _build_polars_struct(self):
-        if len(self.polars_schema.columns.keys()) == 2:
-            return self._build_polars_struct_simple()
-        else:
-            return self._build_polars_struct_complex()
-
-    def simple_dict_to_list_of_structs(self, linkml_simple_dict):
-        """ { 'A': 1, 'B': 2, ... } -> [{'id': 'other': 1}, {'id': 'B', 'other': 2}, ...]
-        
-           An inefficient conversion (relative to native PolaRS operations)
-           from a simple dict form to a dataframe struct column.
-
-           e : dict
-               e is a single row entry in a dataframe column (one cell), which itself is a dict.
-               The value entries of e may also be dicts.
-        """
-        arr = []
-        for id_value, range_value in linkml_simple_dict.items():
-            if isinstance(range_value, dict) and (set(range_value.keys()) <= set(self.polars_schema.columns.keys())):
-                range_dict = range_value
-                range_dict[self.id_col] = id_value
-                for column_key in self.polars_schema.columns.keys():
-                    if column_key not in range_dict:
-                        range_dict[column_key] = None
-            else:
-                range_dict = {self.id_col: id_value, self.other_col: range_value}
-            arr.append(range_dict)
-
-        return arr
-
-    def list_dtype(self):
-        return pl.List(self.polars_struct)
+def handle_validation_exceptions(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except pl.exceptions.PanicException:
+            data = args[2] if len(args) > 2 else kwargs.get('data')
+            return data.lazyframe.select(pl.lit(False))
+        except pandera.errors.SchemaError as e:
+            raise e
+        except Exception:
+            data = args[2] if len(args) > 2 else kwargs.get('data')
+            return data.lazyframe.select(pl.lit(False))
+    return wrapper
 
 
 class LinkmlPanderaValidator:
@@ -126,12 +71,12 @@ class LinkmlPanderaValidator:
         polars_schema = cls.get_nested_range(column_name).to_schema()
         (id_column, other_column) = cls._simple_dict_fields(column_name, pandera_model)
 
-        transformer = SimpleDictModelTransform(polars_schema, id_column, other_column)
+        simple_dict_transformer = SimpleDictModelTransform(polars_schema, id_column, other_column)
 
         one_column_df = data.lazyframe.select(pl.col(column_name)).collect()
 
         list_of_structs = [
-            transformer.simple_dict_to_list_of_structs(e)
+            simple_dict_transformer.transform(e)
             for [e] in one_column_df.iter_rows()
         ]
 
@@ -140,6 +85,7 @@ class LinkmlPanderaValidator:
         )
     
     @classmethod
+    @handle_validation_exceptions
     def _check_simple_dict(cls, pandera_model: pla.DataFrameModel, data: PolarsData):
         """
            The 'simple dict' format, in which the key serves as a local identifier is not a good match for a PolaRS
@@ -151,22 +97,13 @@ class LinkmlPanderaValidator:
 
         df = (
             df.lazy()
-            #.select(pl.col(column_name))
             .explode(column_name)
             .unnest(column_name)
             .collect()
         )
 
-        try:
-            nested_cls = cls.get_nested_range(column_name)
-            nested_cls.validate(df)
-        except pandera.errors.SchemaError as e:
-            raise e
-        except pandera.errors.SchemaError as e:
-            raise e
-        except Exception:
-            return data.lazyframe.select(pl.lit(False))
-
+        nested_cls = cls.get_nested_range(column_name)
+        nested_cls.validate(df)
         return data.lazyframe.select(pl.lit(True))
 
     @classmethod
@@ -186,60 +123,27 @@ class LinkmlPanderaValidator:
         return unnested_column
 
     @classmethod
-    def collection_struct_mapper(cls, column_name: str):
-        """used in a collection struct to convert the dict object to a list of structs via map_elements.
-           the name of the id column needs to be looked up in the schema.
-        """
-        nested_cls = cls.get_nested_range(column_name)
-        id_column = nested_cls.get_id_column_name()
-
-        def mapping_lambda(x):
-            arr = []
-
-            for k,v in x.items():
-                if k not in v:
-                    v[id_column] = k
-                arr.append(v)
-
-            return arr
-
-        return mapping_lambda
-
-    @classmethod
+    @handle_validation_exceptions
     def _check_collection_struct(cls, pandera_model: pla.DataFrameModel, data: PolarsData):
-        df = data.lazyframe
         column_name = data.key
+        nested_cls = cls.get_nested_range(column_name)
+        
+        df = CollectionDictModelTransform.prepare_dataframe(data, column_name, nested_cls)
 
-        schema = pandera_model.generate_polars_schema_simple()
-
-        # fmt: off
-        unnested_column =  (
-            df
-            .select(
-                pl.col(column_name)
-                .map_elements(
-                    cls.collection_struct_mapper(column_name),
-                    skip_nulls=True,
-                    return_dtype=pl.List(schema)
-                )
-            )
-            .filter(pl.col(column_name).list.len() > 0) # see: https://github.com/pola-rs/polars/issues/14381
+        df = (
+            df.lazy()
+            .filter(pl.col(column_name).list.len() > 0)
             .explode(column_name)
             .unnest(column_name)
+            .collect()
         )
-        # fmt: on
 
-        try:
-            nested_cls = cls.get_nested_range(column_name)
-            nested_cls.validate(unnested_column, lazy=True)
-        except (pl.exceptions.PanicException, Exception):
-            return data.lazyframe.select(pl.lit(False))
-
-
+        nested_cls.validate(df)
         return data.lazyframe.select(pl.lit(True))
 
 
     @classmethod
+    @handle_validation_exceptions
     def _check_nested_list_struct(cls, pandera_model: pla.DataFrameModel, data: PolarsData):
         """Use this in a custom check. Pass the nested model as pandera_model."""
         column_name = data.key
@@ -247,17 +151,10 @@ class LinkmlPanderaValidator:
         try:
             unnested_column = cls._unnest_list_struct(column_name, data.lazyframe).collect().lazy()
         except (pl.exceptions.PanicException, Exception):
-            try:
-                unnested_column = cls._unnest_struct(column_name, data.lazyframe).collect().lazy()
-            except (pl.exceptions.PanicException, Exception):
-                return data.lazyframe.select(pl.lit(False))
+            unnested_column = cls._unnest_struct(column_name, data.lazyframe).collect().lazy()
 
-        try:
-            nested_cls = cls.get_nested_range(column_name)
-            nested_cls.validate(unnested_column, lazy=True)
-        except (pl.exceptions.PanicException, Exception):
-            return data.lazyframe.select(pl.lit(False))
-
+        nested_cls = cls.get_nested_range(column_name)
+        nested_cls.validate(unnested_column, lazy=True)
         return data.lazyframe.select(pl.lit(True))
 
 
@@ -276,21 +173,14 @@ class LinkmlPanderaValidator:
         return unnested_column
 
     @classmethod
+    @handle_validation_exceptions
     def _check_nested_struct(cls, pandera_model: pla.DataFrameModel, data: PolarsData):
         """Use this in a custom check. Pass the nested model as pandera_model."""
         column_name = data.key
 
-        try:
-            unnested_column = cls._unnest_struct(column_name, data.lazyframe).collect().lazy()
-        except pl.exceptions.PanicException:
-            return data.lazyframe.select(pl.lit(False))
-
-        try:
-            nested_cls = cls.get_nested_range(column_name)
-            nested_cls.validate(unnested_column, lazy=True)
-        except (pl.exceptions.PanicException, Exception):
-            return data.lazyframe.select(pl.lit(False))
-
+        unnested_column = cls._unnest_struct(column_name, data.lazyframe).collect().lazy()
+        nested_cls = cls.get_nested_range(column_name)
+        nested_cls.validate(unnested_column, lazy=True)
         return data.lazyframe.select(pl.lit(True))
 
     @classmethod
