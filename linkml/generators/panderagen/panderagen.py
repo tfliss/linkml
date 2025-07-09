@@ -15,12 +15,13 @@ from linkml_runtime.utils.formatutils import camelcase
 from linkml_runtime.utils.schemaview import SchemaView
 
 from linkml._version import __version__
-from linkml.generators.oocodegen import OOClass, OOCodeGenerator, OODocument
+from linkml.generators.oocodegen import OOCodeGenerator, OODocument
 from linkml.utils.generator import shared_arguments
 
 from .class_generator_mixin import ClassGeneratorMixin
 from .enum_generator_mixin import EnumGeneratorMixin
 from .slot_generator_mixin import SlotGeneratorMixin
+from .dataframe_class import DataframeClass
 
 logger = logging.getLogger(__name__)
 
@@ -233,7 +234,7 @@ class PanderaGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixin,
             identifier_or_key_slot = self.get_identifier_or_key_slot(cn)
             if identifier_or_key_slot:
                 annotations["identifier_key_slot"] = identifier_or_key_slot.name
-            ooclass = OOClass(
+            ooclass = DataframeClass(
                 name=safe_cn,
                 description=c.description,
                 package=self.package,

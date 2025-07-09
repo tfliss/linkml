@@ -3,18 +3,27 @@ from typing import Optional
 
 from linkml_runtime.linkml_model.meta import ClassDefinitionName, SlotDefinition
 
-from linkml.generators.oocodegen import OOField
 from linkml.utils.helpers import get_range_associated_slots
+from .dataframe_field import DataframeField
 
 logger = logging.getLogger(__file__)
 
-
 class SlotGeneratorMixin:
+    """
+       Prior to rendering the dataframe schema, this class provides
+       and adapter between the LinkML model and schema view
+       and the rendering engine.
+    """
     LINKML_ANY_CURIE = "linkml:Any"
+
+    # constants used to render the schema
+    # these will be moved to a dialect-specific place
     ANY_RANGE_STRING = "Object"
     CLASS_RANGE_STRING = "Struct"
     SIMPLE_DICT_RANGE_STRING = "Struct"
     ENUM_RANGE_STRING = "Enum"
+
+    # association form flags used for rendering decisions
     FORM_INLINED_DICT = "inlined_dict"
     FORM_INLINED_LIST_DICT = "inlined_list_dict"
     FORM_INLINED_COLLECTION_DICT = "inline_collection_dict"
@@ -22,6 +31,15 @@ class SlotGeneratorMixin:
     FORM_MULTIVALUED_FOREIGN_KEY = "list_foreign_key"
     FORM_FOREIGN_KEY = "foreign_key"
     FORM_ERROR = "error"
+
+    # When nested inlining is done, the Pandera validator needs a specific range
+    INLINED_FORM_RANGE_PANDERA = {
+        FORM_INLINED_SIMPLE_DICT: SIMPLE_DICT_RANGE_STRING,
+        FORM_INLINED_LIST_DICT: CLASS_RANGE_STRING,
+        FORM_INLINED_COLLECTION_DICT: CLASS_RANGE_STRING,
+        FORM_INLINED_DICT: CLASS_RANGE_STRING,
+        FORM_ERROR: None
+    }
 
     def is_multivalued(self, slot):
         return "multivalued" in slot and slot.multivalued is True
@@ -72,12 +90,6 @@ class SlotGeneratorMixin:
         if self.calculate_simple_dict(slot) is not None:
             return SlotGeneratorMixin.FORM_INLINED_SIMPLE_DICT
 
-        if internal_inlined_form in (
-            SlotGeneratorMixin.FORM_MULTIVALUED_FOREIGN_KEY,
-            SlotGeneratorMixin.FORM_FOREIGN_KEY
-        ):
-            logger.warning(f"Foreign key not implemented for slot {slot.name}")
-
         return internal_inlined_form
 
     def calculate_simple_dict(self, slot: SlotDefinition):
@@ -87,7 +99,7 @@ class SlotGeneratorMixin:
 
         return range_simple_dict_value_slot
 
-    def handle_none_slot(self, slot, range: str) -> str:
+    def handle_none_slot(self, slot) -> str:
         range = self.schema.default_range  # need to figure this out, set at the beginning?
         if range is None:
             range = "str"
@@ -97,56 +109,34 @@ class SlotGeneratorMixin:
     def handle_class_slot(self, slot, range: str) -> str:
         range_info = self.schemaview.all_classes().get(range)
 
-        inlined_form = self.calculate_inlined_form(slot)
-
         if range_info["class_uri"] == SlotGeneratorMixin.LINKML_ANY_CURIE:
             range = SlotGeneratorMixin.ANY_RANGE_STRING
-        elif inlined_form is not None:
-            slot.annotations["inline_form"] = inlined_form
-            if inlined_form == SlotGeneratorMixin.FORM_INLINED_SIMPLE_DICT:
-                range = self.handle_inlined_as_simple_dict_class_slot(slot, range)
-            elif inlined_form == SlotGeneratorMixin.FORM_INLINED_LIST_DICT:
-                range = self.handle_inlined_list_class_slot(slot, range)
-            elif inlined_form == SlotGeneratorMixin.FORM_INLINED_COLLECTION_DICT:
-                range = self.handle_inlined_collection_class_slot(slot, range)
-            elif inlined_form == SlotGeneratorMixin.FORM_INLINED_DICT:
-                range = self.handle_inlined_class_slot(slot, range)
-            elif inlined_form == SlotGeneratorMixin.FORM_ERROR:
-                logger.warning(
-                    f"Unknown association form for slot {slot.name} with inlined={slot.inlined}, "
-                    f"inlined_as_list={slot.inlined_as_list}, multivalued={self.is_multivalued(slot)}"
-                )
-                range = self.handle_non_inlined_class_slot(slot, range)
+        else:
+            inlined_form = self.calculate_inlined_form(slot)
+
+            if inlined_form in (
+                SlotGeneratorMixin.FORM_MULTIVALUED_FOREIGN_KEY,
+                SlotGeneratorMixin.FORM_FOREIGN_KEY
+            ):
+                logger.warning(f"Foreign key not implemented for slot {slot.name}")
+                range = f"ID_TYPES['{self.get_class_name(range)}']"
             else:
-                range = self.handle_non_inlined_class_slot(slot, range)
+                # TODO: make these setters
+                slot.annotations["reference_class"] = self.get_class_name(range) 
+                slot.annotations["inline_form"] = inlined_form
 
-        if inlined_form in [ SlotGeneratorMixin.FORM_INLINED_LIST_DICT ]:
-            range = self.make_multivalued(range)
+                range = SlotGeneratorMixin.INLINED_FORM_RANGE_PANDERA[inlined_form]
 
-        return range
-
-    def handle_inlined_collection_class_slot(self, slot, range: str) -> str:
-        slot.annotations["reference_class"] = self.get_class_name(range)
-        range = SlotGeneratorMixin.CLASS_RANGE_STRING
-
-        return range
-
-    def handle_inlined_list_class_slot(self, slot, range: str) -> str:
-        slot.annotations["reference_class"] = self.get_class_name(range)
-        range = SlotGeneratorMixin.CLASS_RANGE_STRING
+                if inlined_form == SlotGeneratorMixin.FORM_INLINED_SIMPLE_DICT:
+                    self.set_simple_dict_inline_details_annotation(slot)
+                elif inlined_form in [ SlotGeneratorMixin.FORM_INLINED_LIST_DICT ]:
+                    range = self.make_multivalued(range)
 
         return range
 
-    def handle_inlined_class_slot(self, slot, range) -> str:
-        slot.annotations["reference_class"] = self.get_class_name(range)
-        range = SlotGeneratorMixin.CLASS_RANGE_STRING
-
-        return range
-
-    def handle_inlined_as_simple_dict_class_slot(self, slot, range: str) -> str:
-        slot.annotations["reference_class"] = self.get_class_name(range)
-        range = SlotGeneratorMixin.SIMPLE_DICT_RANGE_STRING  # range is getting set to object multiple times
-
+    def set_simple_dict_inline_details_annotation(self, slot):
+        """Extra metadata is to help with the simple dict case
+        """
         (range_id_slot, range_simple_dict_value_slot, _) = get_range_associated_slots(  # range_required_slots,
             self.schemaview, slot.range
         )
@@ -155,9 +145,9 @@ class SlotGeneratorMixin:
         other_slot = range_simple_dict_value_slot.name
         slot.annotations["inline_details"] = {"id": simple_dict_id, "other": other_slot}
 
-        return range
-
     def handle_non_inlined_class_slot(self, slot, range: str) -> str:
+        """ non-inlined class slots have been temporarily removed but this will be needed to support them
+        """
         return f"ID_TYPES['{self.get_class_name(range)}']"
 
     def handle_type_slot(self, slot, range: str) -> str:
@@ -194,7 +184,7 @@ class SlotGeneratorMixin:
             safe_sn = self.get_slot_name(slot.alias)
 
         if range is None:
-            range = self.handle_none_slot(slot, range)
+            range = self.handle_none_slot(slot)
         elif range in self.schemaview.all_classes():
             range = self.handle_class_slot(slot, range)
         elif range in self.schemaview.all_types():
@@ -207,7 +197,7 @@ class SlotGeneratorMixin:
         else:
             raise Exception(f"Unknown range {range}")
 
-        return OOField(
+        return DataframeField(
             name=safe_sn,
             source_slot=slot,
             range=range,

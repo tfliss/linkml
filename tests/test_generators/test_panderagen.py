@@ -424,6 +424,29 @@ def test_synthetic_dataframe_boolean_error(
         print(json.dumps(e.value.message, indent=2))
         assert False
 
+def test_nested(pl, np, N, pandera, compiled_synthetic_schema_module, big_synthetic_dataframe):
+  """Change the simple dict column values from Int64 to Float64
+  """
+  df_with_nested_simple_dict_type_error = (
+    big_synthetic_dataframe
+    .with_columns(
+        pl.struct(
+          pl.Series(np.arange(0.0, float(N), 1.0), dtype=pl.Float64).alias("A"),
+          pl.Series(np.arange(0.0, 1.0, 1.0/float(N)), dtype=pl.Float64).alias("B"),
+          pl.Series(np.arange(0.0, float(N)*10.0, 10.0), dtype=pl.Float64).alias("C"),
+        ).alias("inlined_simple_dict_column")
+    )
+  )
+
+  with pytest.raises(pandera.errors.SchemaErrors) as e:
+    compiled_synthetic_schema_module.PanderaSyntheticTable.validate(df_with_nested_simple_dict_type_error, lazy=True)
+
+  error_details = e.value.message['DATA']['CHECK_ERROR'][0]
+
+  assert error_details['column'] == 'inlined_simple_dict_column'
+  assert error_details['check'] == 'check_nested_struct_inlined_simple_dict_column'
+  assert error_details['error'] == 'SchemaError("expected column \'x\' to have type Int64, got Float64")'
+
 @pytest.mark.parametrize("target_class,schema", [("Organization", "organization")])
 def test_cli_simple(cli_runner, test_inputs_dir, target_class, schema):
     schema_path = str(test_inputs_dir / f"{schema}.yaml")

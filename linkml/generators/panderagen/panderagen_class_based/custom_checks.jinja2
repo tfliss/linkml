@@ -1,30 +1,42 @@
-{%- macro render_custom_check(field) -%}
-    {%- with slot = field.source_slot -%}
-        {%- if slot.minimum_cardinality or slot.maximum_cardinality %}
+
+{%- macro cardinality_checks(field) -%}
+    {%- if field.minimum_cardinality() or field.maximum_cardinality() %}
     @pla.check("{{ field.name }}")
     def check_cardinality_{{ field.name }}(cls, data: PolarsData):
         return cls._check_cardinality(
             data.lazyframe,
             data.key,
-            min_cardinality={{ slot.minimum_cardinality }},
-            max_cardinality={{ slot.maximum_cardinality }}
+            min_cardinality={{ field.minimum_cardinality() }},
+            max_cardinality={{ field.maximum_cardinality() }}
         )
-        {%- endif -%}
-        {%- if slot.annotations['reference_class'] and slot.annotations['inline_form'] != 'simple_dict' %}
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro nested_checks(field) -%}
+{#-
+    field: DataframeField
+    Render a class method that follows nested structures
+    other than the simple_dict form.
+-#}
+    {%- if field.reference_class() %}
     @pla.check("{{ field.name }}")
     def check_nested_struct_{{ field.name }}(cls, data: PolarsData):
-        {% if slot.annotations['inline_form'] == 'inline_list_dict' %}
-        return cls._check_nested_struct({{ slot.annotations['reference_class'] }}, data)
-        {% elif slot.annotations['inline_form'] == 'inline_collection_dict' %}
-        return cls._check_collection_struct({{ slot.annotations['reference_class'] }}, data)
-        {% else %}
-        return cls._check_nested_list_struct({{ slot.annotations['reference_class'] }}, data)
-        {% endif %}
-        {%- endif -%}
-        {%- if slot.annotations['reference_class'] and slot.annotations['inline_form'] == 'simple_dict' %}
-    @pla.check("{{ field.name }}")
-    def check_simple_dict_{{ field.name }}(cls, data: PolarsData):
-        return cls._check_simple_dict({{ slot.annotations['reference_class'] }}, data)
-        {%- endif -%}
-    {%- endwith -%}
+        {% if field.inline_form() == 'inline_list_dict' -%}
+        return cls._check_nested_struct({{ field.reference_class() }}, data)
+        {% elif field.inline_form() == 'simple_dict' -%}
+        return cls._check_simple_dict({{ field.reference_class() }}, data)
+        {% elif field.inline_form() == 'inline_collection_dict' -%}
+        return cls._check_collection_struct({{ field.reference_class() }}, data)
+        {% else -%}
+        return cls._check_nested_list_struct({{ field.reference_class() }}, data)
+        {% endif -%}
+    {%- endif -%}
 {%- endmacro -%}
+
+{%- macro render_custom_checks(cls) -%}
+    {%- for field in cls.fields -%}
+    {{ cardinality_checks(field) }}
+    {{ nested_checks(field) }}
+    {%- endfor %}
+{%- endmacro -%}
+
