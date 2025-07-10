@@ -1,7 +1,19 @@
-"""This package supports conversion in serialization of a model.
-   For example a column that is inlined as a simple dictionary may be converted to
-   an inlined list form.
+"""Transform classes for LinkML Pandera validation.
 
-   The Pandera and PolaRS dataframe libraries are often much more efficient with
-   certain forms, while other forms make more sense for viewing or export to JSON.
+This module provides transform classes that convert LinkML inline formats
+into forms suitable for Polars DataFrame validation with Pandera models.
 """
+
+from .model_transform import ModelTransform
+from .simple_dict_model_transform import SimpleDictModelTransform
+from .collection_dict_model_transform import CollectionDictModelTransform
+from .list_dict_model_transform import ListDictModelTransform
+from .nested_struct_model_transform import NestedStructModelTransform
+
+__all__ = [
+    'ModelTransform',
+    'SimpleDictModelTransform', 
+    'CollectionDictModelTransform',
+    'ListDictModelTransform',
+    'NestedStructModelTransform'
+]

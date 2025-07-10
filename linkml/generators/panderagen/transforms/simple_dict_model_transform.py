@@ -80,3 +80,12 @@ class SimpleDictModelTransform(ModelTransform):
 
     def list_dtype(self):
         return pl.List(self.polars_struct)
+    
+    def explode_unnest_dataframe(self, df, column_name):
+        """Explode and unnest for simple dict."""
+        return (
+            df.lazy()
+            .explode(column_name)
+            .unnest(column_name)
+            .collect()
+        )

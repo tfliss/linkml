@@ -497,6 +497,10 @@ def test_synthetic_dataframe_wrong_datatype(
 def test_synthetic_dataframe_boolean_error(
     pl, pandera, compiled_synthetic_schema_module, big_synthetic_dataframe, drop_column
 ):
+    """Note that this test accepts SchemaError as well as SchemaErrors
+       even though lazy validation is performed, because nested checks
+       may be run non-lazy.
+    """
     # fmt: off
     error_dataframe = (
         big_synthetic_dataframe
@@ -506,7 +510,7 @@ def test_synthetic_dataframe_boolean_error(
     )
     # fmt: on
 
-    with pytest.raises(pandera.errors.SchemaErrors) as e:
+    with pytest.raises((pandera.errors.SchemaErrors, pandera.errors.SchemaError)) as e:
       compiled_synthetic_schema_module.PanderaSyntheticTable.validate(error_dataframe, lazy=True)
 
     assert "COLUMN_NOT_IN_DATAFRAME" in str(e.value)

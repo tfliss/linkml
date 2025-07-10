@@ -60,3 +60,13 @@ class CollectionDictModelTransform(ModelTransform):
         return pl.DataFrame(
             pl.Series(list_of_structs).alias(column_name)
         )
+    
+    def explode_unnest_dataframe(self, df, column_name):
+        """Filter, explode and unnest for collection dict."""
+        return (
+            df.lazy()
+            .filter(pl.col(column_name).list.len() > 0)
+            .explode(column_name)
+            .unnest(column_name)
+            .collect()
+        )

@@ -6,9 +6,12 @@ import pandera.polars as pla
 import polars as pl
 from pandera.api.polars.types import PolarsData
 import pandera
-from linkml.generators.panderagen.transforms.simple_dict_model_transform import SimpleDictModelTransform
-from linkml.generators.panderagen.transforms.collection_dict_model_transform import CollectionDictModelTransform
-from linkml.generators.panderagen.transforms.list_dict_model_transform import ListDictModelTransform
+from linkml.generators.panderagen.transforms import (
+    SimpleDictModelTransform,
+    CollectionDictModelTransform, 
+    ListDictModelTransform,
+    NestedStructModelTransform
+)
 
 
 def handle_validation_exceptions(func):
@@ -57,20 +60,20 @@ class LinkmlPanderaValidator:
         return df
 
     @classmethod
-    def _simple_dict_fields(cls, column_name, pandera_model: pla.DataFrameModel):
+    def _simple_dict_fields(cls, column_name):
         details = cls._INLINE_DETAILS[column_name]  # <-- THESE ARE GOING ON THE OUTER CLASS
 
         return (details["id"], details["other"])
 
     @classmethod
-    def _prepare_simple_dict(cls, pandera_model: pla.DataFrameModel, data : PolarsData):
+    def _prepare_simple_dict(cls, data : PolarsData):
         """Returns just the simple dict column tranformed to an inlined list form
 
            note that this method uses collect and iter_rows so is very inefficient
         """
         column_name = data.key
         polars_schema = cls.get_nested_range(column_name).to_schema()
-        (id_column, other_column) = cls._simple_dict_fields(column_name, pandera_model)
+        (id_column, other_column) = cls._simple_dict_fields(column_name)
 
         simple_dict_transformer = SimpleDictModelTransform(polars_schema, id_column, other_column)
 
@@ -87,21 +90,18 @@ class LinkmlPanderaValidator:
     
     @classmethod
     @handle_validation_exceptions
-    def _check_simple_dict(cls, pandera_model: pla.DataFrameModel, data: PolarsData):
+    def _check_simple_dict(cls, data: PolarsData):
         """
            The 'simple dict' format, in which the key serves as a local identifier is not a good match for a PolaRS
            DataFrame. At present the format is 
         """
-        df = cls._prepare_simple_dict(pandera_model, data)
+        df = cls._prepare_simple_dict(data)
 
         column_name = data.key
 
-        df = (
-            df.lazy()
-            .explode(column_name)
-            .unnest(column_name)
-            .collect()
-        )
+        polars_schema = cls.get_nested_range(column_name).to_schema()
+        simple_transform = SimpleDictModelTransform(polars_schema, *cls._simple_dict_fields(column_name))
+        df = simple_transform.explode_unnest_dataframe(df, column_name)
 
         nested_cls = cls.get_nested_range(column_name)
         nested_cls.validate(df)
@@ -109,19 +109,14 @@ class LinkmlPanderaValidator:
 
     @classmethod
     @handle_validation_exceptions
-    def _check_collection_struct(cls, pandera_model: pla.DataFrameModel, data: PolarsData):
+    def _check_collection_struct(cls, data: PolarsData):
         column_name = data.key
         nested_cls = cls.get_nested_range(column_name)
         
         df = CollectionDictModelTransform.prepare_dataframe(data, column_name, nested_cls)
 
-        df = (
-            df.lazy()
-            .filter(pl.col(column_name).list.len() > 0)
-            .explode(column_name)
-            .unnest(column_name)
-            .collect()
-        )
+        collection_transform = CollectionDictModelTransform(nested_cls.to_schema(), nested_cls.get_id_column_name())
+        df = collection_transform.explode_unnest_dataframe(df, column_name)
 
         nested_cls.validate(df)
         return data.lazyframe.select(pl.lit(True))
@@ -129,51 +124,32 @@ class LinkmlPanderaValidator:
 
     @classmethod
     @handle_validation_exceptions
-    def _check_nested_list_struct(cls, pandera_model: pla.DataFrameModel, data: PolarsData):
+    def _check_nested_list_struct(cls, data: PolarsData):
         """Use this in a custom check. Pass the nested model as pandera_model."""
         column_name = data.key
         nested_cls = cls.get_nested_range(column_name)
         
         df = ListDictModelTransform.prepare_dataframe(data, column_name, nested_cls)
 
-        try:
-            df = (
-                df.lazy()
-                .filter(pl.col(column_name).list.len() > 0)
-                .explode(column_name)
-                .unnest(column_name)
-                .collect()
-            )
-        except (pl.exceptions.PanicException, Exception):
-            df = cls._unnest_struct(column_name, data.lazyframe).collect()
+        list_transform = ListDictModelTransform(nested_cls.to_schema())
+        df = list_transform.explode_unnest_dataframe(df, column_name, data)
 
         nested_cls.validate(df)
         return data.lazyframe.select(pl.lit(True))
 
 
     @classmethod
-    def _unnest_struct(cls, column_name: str, df):
-        """Use this in a custom check. Pass the nested model as pandera_model."""
-
-        # fmt: off
-        unnested_column = (
-            df
-            .select(column_name)
-            .unnest(column_name)
-        )
-        # fmt: on
-
-        return unnested_column
-
-    @classmethod
     @handle_validation_exceptions
-    def _check_nested_struct(cls, pandera_model: pla.DataFrameModel, data: PolarsData):
+    def _check_nested_struct(cls, data: PolarsData):
         """Use this in a custom check. Pass the nested model as pandera_model."""
         column_name = data.key
-
-        unnested_column = cls._unnest_struct(column_name, data.lazyframe).collect().lazy()
         nested_cls = cls.get_nested_range(column_name)
-        nested_cls.validate(unnested_column, lazy=True)
+        
+        df = NestedStructModelTransform.prepare_dataframe(data, column_name, nested_cls)
+        nested_transform = NestedStructModelTransform(nested_cls.to_schema())
+        df = nested_transform.explode_unnest_dataframe(df, column_name)
+        
+        nested_cls.validate(df)
         return data.lazyframe.select(pl.lit(True))
 
     @classmethod

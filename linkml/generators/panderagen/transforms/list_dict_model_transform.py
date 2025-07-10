@@ -54,3 +54,20 @@ class ListDictModelTransform(ModelTransform):
         return pl.DataFrame(
             pl.Series(list_of_structs).alias(column_name)
         )
+    
+    def explode_unnest_dataframe(self, df, column_name, data=None):
+        """Filter, explode and unnest for list dict with struct fallback."""
+        try:
+            return (
+                df.lazy()
+                .filter(pl.col(column_name).list.len() > 0)
+                .explode(column_name)
+                .unnest(column_name)
+                .collect()
+            )
+        except (pl.exceptions.PanicException, Exception):
+            if data:
+                from .nested_struct_model_transform import NestedStructModelTransform
+                nested_transform = NestedStructModelTransform(self.polars_schema)
+                return nested_transform.explode_unnest_dataframe(data.lazyframe, column_name)
+            raise
