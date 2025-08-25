@@ -688,6 +688,7 @@ class Generator(metaclass=abc.ABCMeta):
         @param slot: either a slot name or a definition
         @return: overloaded name
         """
+
         if isinstance(slot, str):
             slot = self.schema.slots[cast(SlotDefinitionName, slot)]
         return slot.alias if slot.alias else slot.name
@@ -729,7 +730,7 @@ class Generator(metaclass=abc.ABCMeta):
         isn't valid.
         """
         slot = self.slot_for(name)
-        return underscore(self.aliased_slot_name(slot) if slot else ("unknown " + name))
+        return self.get_metamodel_slot_name(self.aliased_slot_name(slot) if slot else ("unknown " + name))
 
     def subset_for(self, name: str) -> Optional[Element]:
         return self.schema.subsets.get(name)

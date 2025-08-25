@@ -54,8 +54,8 @@ class JsonSchema(dict):
         super().__init__(*args, **kwargs)
         self._lax_forward_refs = {}
 
-    def add_def(self, name: str, subschema: "JsonSchema") -> None:
-        canonical_name = camelcase(name)
+    def add_def(self, name: str, subschema: "JsonSchema", generator: "JsonSchemaGenerator" = None) -> None:
+        canonical_name = generator.make_canonical(name) if generator else name
 
         if "$defs" not in self:
             self["$defs"] = {}
@@ -67,9 +67,9 @@ class JsonSchema(dict):
 
         if canonical_name in self._lax_forward_refs:
             identifier_name = self._lax_forward_refs.pop(canonical_name)
-            self.add_lax_def(canonical_name, identifier_name)
+            self.add_lax_def(canonical_name, identifier_name, generator)
 
-    def add_lax_def(self, names: Union[str, list[str]], identifier_name: str) -> None:
+    def add_lax_def(self, names: Union[str, list[str]], identifier_name: str, generator: "JsonSchemaGenerator" = None) -> None:
         # JSON-Schema does not have inheritance,
         # so we duplicate slots from inherited parents and mixins
         # Maps e.g. Person --> Person__identifier_optional
@@ -78,7 +78,7 @@ class JsonSchema(dict):
             names = [names]
 
         for name in names:
-            canonical_name = camelcase(name)
+            canonical_name = generator.make_canonical(name) if generator else name # camelcase(name)
 
             if "$defs" not in self or canonical_name not in self["$defs"]:
                 self._lax_forward_refs[canonical_name] = identifier_name
@@ -90,7 +90,7 @@ class JsonSchema(dict):
     def add_property(
         self, name: str, subschema: "JsonSchema", *, value_required: bool = False, value_disallowed: bool = False
     ) -> None:
-        canonical_name = underscore(name)
+        canonical_name = name # underscore(name)
 
         if "properties" not in self:
             self["properties"] = {}
@@ -149,7 +149,8 @@ class JsonSchema(dict):
     @classmethod
     def ref_for(cls, class_name: Union[str, list[str]], identifier_optional: bool = False, required: bool = True):
         def _ref(class_name):
-            def_name = camelcase(class_name)
+            #def_name = camelcase(class_name)  # Keep original for backward compatibility in static method
+            def_name = class_name
             def_suffix = cls.OPTIONAL_IDENTIFIER_SUFFIX if identifier_optional else ""
             return JsonSchema({"$ref": f"#/$defs/{def_name}{def_suffix}"})
 
@@ -265,6 +266,13 @@ class JsonSchemaGenerator(Generator, LifecycleMixin):
     include_null: bool = True
     """Whether to include a "null" type in optional slots"""
 
+    camel_case: bool = True
+    """Whether to use camelCase for canonical names"""
+
+    def make_canonical(self, name: str) -> str:
+        """Convert name to canonical form based on camel_case setting"""
+        return camelcase(name) if self.camel_case else name
+
     def __post_init__(self):
         if self.topClass:
             logger.warning("topClass is deprecated - use top_class")
@@ -275,6 +283,12 @@ class JsonSchemaGenerator(Generator, LifecycleMixin):
         if self.top_class:
             if self.schemaview.get_class(self.top_class) is None:
                 logger.warning(f"No class in schema named {self.top_class}")
+
+    def get_metamodel_slot_name(self, slot_name: str) -> str:
+        if self.camel_case is True:
+            return super().get_metamodel_slot_name(slot_name)
+        else:
+            return slot_name
 
     def start_schema(self, inline: bool = False):
         self.inline = inline
@@ -370,9 +384,9 @@ class JsonSchemaGenerator(Generator, LifecycleMixin):
             ClassResult.model_construct(schema_=class_subschema, source=cls), self.schemaview
         ).schema_
 
-        self.top_level_schema.add_def(cls.name, class_subschema)
+        self.top_level_schema.add_def(cls.name, class_subschema, self)
 
-        if (self.top_class is not None and camelcase(self.top_class) == camelcase(cls.name)) or (
+        if (self.top_class is not None and self.make_canonical(self.top_class) == self.make_canonical(cls.name)) or (
             self.top_class is None and cls.tree_root
         ):
             for key, value in class_subschema.items():
@@ -455,7 +469,7 @@ class JsonSchemaGenerator(Generator, LifecycleMixin):
         enum_schema = self.after_generate_enum(
             EnumResult.model_construct(schema_=enum_schema, source=enum), self.schemaview
         ).schema_
-        self.top_level_schema.add_def(enum.name, enum_schema)
+        self.top_level_schema.add_def(enum.name, enum_schema, self)
 
     def get_type_info_for_slot_subschema(
         self, slot: Union[SlotDefinition, AnonymousSlotExpression]
@@ -577,7 +591,7 @@ class JsonSchemaGenerator(Generator, LifecycleMixin):
                         else:
                             typ = ["object", "null"]
                         prop = JsonSchema({"type": typ, "additionalProperties": additionalProps})
-                        self.top_level_schema.add_lax_def(reference, self.aliased_slot_name(range_id_slot))
+                        self.top_level_schema.add_lax_def(reference, self.aliased_slot_name(range_id_slot), self)
                     else:
                         prop = JsonSchema.array_of(JsonSchema.ref_for(reference), required=slot.required)
                 else:
@@ -762,6 +776,12 @@ YAML, and including it when necessary but not by default (e.g. in documentation 
     default=True,  # Default set to True
     show_default=True,
     help="If set, patterns will be materialized in the generated JSON Schema.",
+)
+@click.option(
+    "--camel-case/--no-camel-case",
+    default=True,
+    show_default=True,
+    help="Use camelCase for canonical names in the generated JSON Schema.",
 )
 @click.version_option(__version__, "-V", "--version")
 def cli(yamlfile, **kwargs):
