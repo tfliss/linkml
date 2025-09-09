@@ -7,7 +7,6 @@ from linkml_runtime.linkml_model.meta import TypeDefinition
 from ..class_generator_mixin import ClassGeneratorMixin
 from ..dataframe_generator import DataframeGenerator
 from ..enum_generator_mixin import EnumGeneratorMixin
-from .name_handler_pandera_schema import PanderaSchemaNameHandler
 from .slot_generator_mixin_pandera import SlotGeneratorMixinPandera
 
 logger = logging.getLogger(__name__)
@@ -42,9 +41,7 @@ class TemplateEnum(Enum):
 
 
 @dataclass
-class PanderaDataframeGenerator(
-    DataframeGenerator, EnumGeneratorMixin, ClassGeneratorMixin, SlotGeneratorMixinPandera, PanderaSchemaNameHandler
-):
+class PanderaDataframeGenerator(DataframeGenerator, EnumGeneratorMixin, ClassGeneratorMixin, SlotGeneratorMixinPandera):
     """
     Generates Pandera python classes from a LinkML schema.
 

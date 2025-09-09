@@ -4,7 +4,7 @@
 {%- import 'slots.jinja2' as slot_macros -%}
 
 {%- macro schema_name(cls, generator) -%}
-{{ generator.render_class_name(cls.name) }}
+{{ generator.get_class_name(cls.name) }}
 {%- endmacro -%}
 
 {%- macro render_schema(cls, generator) -%}

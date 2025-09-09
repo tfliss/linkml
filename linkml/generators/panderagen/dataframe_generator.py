@@ -1,4 +1,5 @@
 import importlib
+import logging
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -8,7 +9,7 @@ from typing import Optional
 from jinja2 import Environment, PackageLoader
 from linkml_runtime.linkml_model.meta import TypeDefinition
 from linkml_runtime.utils.compile_python import compile_python
-from linkml_runtime.utils.formatutils import camelcase
+from linkml_runtime.utils.formatutils import camelcase, underscore
 from linkml_runtime.utils.schemaview import SchemaView
 
 from linkml.generators.oocodegen import OOCodeGenerator, OODocument
@@ -16,6 +17,8 @@ from linkml.generators.oocodegen import OOCodeGenerator, OODocument
 from .class_generator_mixin import ClassGeneratorMixin
 from .enum_generator_mixin import EnumGeneratorMixin
 from .render_adapters.dataframe_class import DataframeClass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -43,17 +46,6 @@ class DataframeGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixi
 
     roll_up_slots: bool = False
     """whether to include all slots from parents and mixins explicitly in the generated model."""
-
-    def __post_init__(self):
-        super().__post_init__()
-        # Validate template path if provided
-        if self.template_path is not None:
-            from .panderagen import ALLOWED_TEMPLATE_DIRECTORIES
-
-            if self.template_path not in ALLOWED_TEMPLATE_DIRECTORIES:
-                raise ValueError(
-                    f"Template path {self.template_path} not supported. Available: {ALLOWED_TEMPLATE_DIRECTORIES}"
-                )
 
     def default_value_for_type(self, typ: str) -> str:
         """Allow underlying framework to handle default if not specified."""
@@ -205,3 +197,31 @@ class DataframeGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixi
             if sn not in parent_slots:
                 ooclass.fields.append(oofield)
             ooclass.all_fields.append(oofield)
+
+    #
+    # Name overrides from OOCodeGenerator and Generator
+    #
+    def get_class_name(self, cn):
+        """override from OOCodeGenerator"""
+        return underscore(cn)
+
+    def get_slot_name(self, sn):
+        """override from OOCodeGenerator"""
+        return underscore(sn)
+
+    def get_enum_name(self, enum_name: str) -> str:
+        """note OOCodeGenerator uses camelcase directly"""
+        return underscore(enum_name)
+
+    def get_metamodel_slot_name(self, slot_name: str) -> str:
+        """override from Generator"""
+        return self.get_slot_name(slot_name)
+
+    def slot_name(self, name: str) -> str:
+        """
+        Override from generator to use get_metamodel_slot_name
+        Return the  version of the aliased slot name if name is a slot. Prepend ``unknown_`` if the name
+        isn't valid.
+        """
+        slot = self.slot_for(name)
+        return self.get_metamodel_slot_name(self.aliased_slot_name(slot) if slot else ("unknown " + name))

@@ -54,7 +54,7 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
                 range = self.range_id_type(slot)  # TODO: make this a get id function
                 print(range)
             else:
-                range = self.render_name(range)
+                range = self.get_class_name(range)
                 range = f"{range}Struct"
 
         return range
@@ -84,12 +84,8 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
     def handle_enum_slot(self, slot, range: str) -> str:
         """Returns the name of the generated Python variable containing the enum"""
         enum_definition = self.get_enum_definition(range)
-        return self.render_enum_name(enum_definition.name)
-        range = self.render_enum_name(enum_definition)  # TODO: clean form
-        # range = self.__class__.ENUM_RANGE_STRING
-        # slot.annotations["permissible_values"] = self.get_enum_permissible_values(enum_definition)
 
-        return range
+        return self.get_enum_name(enum_definition.name)
 
     def handle_multivalued_slot(self, slot, range: str) -> str:
         if (slot.inlined_as_list is True and self.is_multivalued(slot)) or (

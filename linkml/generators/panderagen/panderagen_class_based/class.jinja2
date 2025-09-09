@@ -5,9 +5,9 @@
 {%- import 'slots.jinja2' as slot_macros -%}
 {%- import 'custom_checks.jinja2' as custom_checks -%}
 
-{%- macro render_parent_classes(cls) -%}
+{%- macro render_parent_classes(cls, generator) -%}
     {%- if cls.is_a -%}
-        {{ cls.is_a }}
+        {{ generator.get_class_name(cls.is_a) }}
     {%- else -%}
         pla.DataFrameModel, _LinkmlPanderaValidator
     {%- endif -%}
@@ -63,13 +63,13 @@
     {%- endfor -%}
 {%- endmacro -%}
 
-{%- macro render_class(cls) %}
+{%- macro render_class(cls, generator) %}
 {#-
     Generates the main structure of a Pandera class.
     This includes the slots, custom checks,
     and helper class members with information used by the custom checks.
 -#}
-class {{cls.name}}({{ render_parent_classes(cls) }}):
+class {{ generator.get_class_name(cls.name) }}({{ render_parent_classes(cls, generator) }}):
     {%- if cls.source_class.description %}
     """
     {{ cls.source_class.description }}

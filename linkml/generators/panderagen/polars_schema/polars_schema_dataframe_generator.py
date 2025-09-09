@@ -5,7 +5,6 @@ from linkml_runtime.linkml_model.meta import TypeDefinition
 
 # TODO: separate these all out for PolaRS
 from ..dataframe_generator import DataframeGenerator
-from .name_handler_polars_schema import PolarsSchemaNameHandler
 from .slot_generator_mixin_polars_schema import SlotGeneratorMixinPolarsSchema
 
 logger = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ POLARS_TYPEMAP = TYPE_MAP.copy()
 
 
 @dataclass
-class PolarsSchemaDataframeGenerator(DataframeGenerator, PolarsSchemaNameHandler, SlotGeneratorMixinPolarsSchema):
+class PolarsSchemaDataframeGenerator(DataframeGenerator, SlotGeneratorMixinPolarsSchema):
     """
     Generates Polars schema classes from a LinkML schema.
     """
