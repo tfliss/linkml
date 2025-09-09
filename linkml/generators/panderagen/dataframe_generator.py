@@ -1,6 +1,7 @@
 import importlib
 import logging
 import os
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -9,7 +10,7 @@ from typing import Optional
 from jinja2 import Environment, PackageLoader
 from linkml_runtime.linkml_model.meta import TypeDefinition
 from linkml_runtime.utils.compile_python import compile_python
-from linkml_runtime.utils.formatutils import camelcase, underscore
+from linkml_runtime.utils.formatutils import camelcase
 from linkml_runtime.utils.schemaview import SchemaView
 
 from linkml.generators.oocodegen import OOCodeGenerator, OODocument
@@ -201,17 +202,26 @@ class DataframeGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixi
     #
     # Name overrides from OOCodeGenerator and Generator
     #
+    def clean(self, name: str) -> str:
+        # Replace sequences of non-alphanumeric chars with __ except _ and - which becomes _
+        cleaned = re.sub(r"[^a-zA-Z0-9-_]+", "__", name)
+        cleaned = re.sub(r"-+", "_", cleaned)
+        # If name starts with digit, prepend __
+        if cleaned and cleaned[0].isdigit():
+            cleaned = "__" + cleaned
+        return cleaned
+
     def get_class_name(self, cn):
         """override from OOCodeGenerator"""
-        return underscore(cn)
+        return self.clean(cn)
 
     def get_slot_name(self, sn):
         """override from OOCodeGenerator"""
-        return underscore(sn)
+        return self.clean(sn)
 
     def get_enum_name(self, enum_name: str) -> str:
         """note OOCodeGenerator uses camelcase directly"""
-        return underscore(enum_name)
+        return self.clean(enum_name)
 
     def get_metamodel_slot_name(self, slot_name: str) -> str:
         """override from Generator"""
