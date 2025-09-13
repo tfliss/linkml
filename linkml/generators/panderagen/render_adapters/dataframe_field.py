@@ -47,3 +47,10 @@ class DataframeField(OOField):
 
     def description(self):
         return self.source_slot.description
+
+    def is_list(self):
+        return (
+            self.source_slot.multivalued
+            or self.source_slot.inlined_as_list
+            or self.inline_form() in ("inline_list_dict", "list_foreign_key")
+        )

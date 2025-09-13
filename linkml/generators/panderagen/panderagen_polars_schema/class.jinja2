@@ -15,7 +15,7 @@
     {%- set fields = cls.fields -%}
     {%- endif -%}
     {%- for field in fields %}
-    {{ slot_macros.render_slot(field) }}
+    {{ slot_macros.render_slot(field, generator) }}
     {%- endfor %}
 {{ '}' }})
 

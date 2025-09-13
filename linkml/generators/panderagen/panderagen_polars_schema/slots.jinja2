@@ -8,13 +8,33 @@
     _id_name : str = {% if cls.identifier_key_slot() %} '{{ cls.identifier_key_slot() }}' {% else %}None{% endif %}
 {%- endmacro -%}
 
-{%- macro render_slot(field) %}
+{%- macro slot_list_start(field) -%}
+    {%- if field.is_list() -%}
+        pl.List(
+    {%- endif -%}
+{% endmacro -%}
+
+{%- macro slot_list_end(field) -%}
+    {%- if field.is_list() -%}
+        )
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro slot_optional_start(field) -%}
+    {%- if (field.required() is none or field.required() is false) and (field.identifier() is not true) -%}
+        Optional[
+    {%- endif -%}
+{% endmacro %}
+
+{%- macro slot_optional_end(field) -%}
+    {%- if (field.required() is none or field.required() is false) and (field.identifier() is not true) -%}
+        ]
+    {%- endif -%}
+{%- endmacro -%}
+
+{%- macro render_slot(field, generator) -%}
     "{{ field.name }}":{{ ' ' }}
-        {%- if (field.required() is none or field.required() is false) and (field.identifier() is not true) -%}
-            Optional[
-        {%- endif -%}
-       {{field.range}}
-        {%- if (field.required() is none or field.required() is false) and (field.identifier() is not true) -%}
-            {{ ']' }}
-        {%- endif -%},
-{%- endmacro %}
+    {{- slot_optional_start(field) -}}
+    {{- field.range -}}
+    {{- slot_optional_end(field) -}},
+{%- endmacro -%}

@@ -1,9 +1,12 @@
+import logging
 from abc import ABC, abstractmethod
 from typing import Optional
 
 from linkml_runtime.linkml_model.meta import ClassDefinitionName, SlotDefinition
 
 from linkml.utils.helpers import get_range_associated_slots
+
+logger = logging.getLogger(__file__)
 
 
 class SlotGeneratorMixinBase(ABC):
@@ -22,8 +25,8 @@ class SlotGeneratorMixinBase(ABC):
     LINKML_ANY_CURIE = "linkml:Any"
 
     # constants used to understand the schema (decision flags)
-    FORM_INLINED_DICT = "inlined_dict"
-    FORM_INLINED_LIST_DICT = "inlined_list_dict"
+    FORM_INLINED_DICT = "inline_dict"
+    FORM_INLINED_LIST_DICT = "inline_list_dict"
     FORM_INLINED_COLLECTION_DICT = "inline_collection_dict"
     FORM_INLINED_SIMPLE_DICT = "simple_dict"
     FORM_MULTIVALUED_FOREIGN_KEY = "list_foreign_key"
@@ -76,7 +79,7 @@ class SlotGeneratorMixinBase(ABC):
         # Range does not have identifier
         (False, False, False, False, False): FORM_INLINED_DICT,  # 'COERCED'
         (False, False, False, False, True): FORM_INLINED_LIST_DICT,  # 'COERCED'
-        (False, False, False, True, False): FORM_INLINED_LIST_DICT,
+        (False, False, False, True, False): FORM_INLINED_DICT,
         (False, False, False, True, True): FORM_INLINED_LIST_DICT,
         (False, False, True, False, False): FORM_INLINED_DICT,
         (False, False, True, False, True): FORM_INLINED_LIST_DICT,  # 'COERCED'
@@ -85,7 +88,7 @@ class SlotGeneratorMixinBase(ABC):
         # Range has identifier
         (False, True, False, False, False): FORM_FOREIGN_KEY,
         (False, True, False, False, True): FORM_MULTIVALUED_FOREIGN_KEY,
-        (False, True, False, True, False): FORM_INLINED_LIST_DICT,
+        (False, True, False, True, False): FORM_INLINED_DICT,
         (False, True, False, True, True): FORM_INLINED_LIST_DICT,
         (False, True, True, False, False): FORM_INLINED_DICT,
         (False, True, True, False, True): FORM_INLINED_COLLECTION_DICT,
@@ -124,7 +127,12 @@ class SlotGeneratorMixinBase(ABC):
             return None
 
     def calculate_inlined_form(self, slot: SlotDefinition) -> str:
-        return self.INTERNAL_INLINED_FORM.get(self.inlined_form_key(slot), SlotGeneratorMixinBase.FORM_ERROR)
+        inline_form_key = self.inlined_form_key(slot)
+        logger.info(f"Inline form key {slot.name}: {inline_form_key}")
+        inline_form = self.INTERNAL_INLINED_FORM.get(inline_form_key, SlotGeneratorMixinBase.FORM_ERROR)
+        logger.info(f"Inline form {slot.name}: {inline_form}")
+
+        return inline_form
 
     def calculate_simple_dict(self, slot: SlotDefinition):
         """slot is the container for the simple dict slot"""

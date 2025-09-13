@@ -29,9 +29,6 @@ TYPE_MAP = {
     },
 }
 
-# Backward compatibility
-TYPEMAP = TYPE_MAP.copy()
-
 
 class TemplateEnum(Enum):
     CLASS_BASED = "panderagen_class_based"

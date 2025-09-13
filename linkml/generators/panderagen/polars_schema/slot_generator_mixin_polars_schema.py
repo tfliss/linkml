@@ -22,14 +22,10 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
     SIMPLE_DICT_RANGE_STRING = "pl.Struct"
     ENUM_RANGE_STRING = "pl.Enum"
 
+    #
+    # This might not be needed or needs to be here
+    #
     # When nested inlining is done, the Pandera validator needs a specific range
-    INLINED_FORM_RANGE_PANDERA = {
-        SlotGeneratorMixinBase.FORM_INLINED_SIMPLE_DICT: SIMPLE_DICT_RANGE_STRING,
-        SlotGeneratorMixinBase.FORM_INLINED_LIST_DICT: CLASS_RANGE_STRING,
-        SlotGeneratorMixinBase.FORM_INLINED_COLLECTION_DICT: CLASS_RANGE_STRING,
-        SlotGeneratorMixinBase.FORM_INLINED_DICT: CLASS_RANGE_STRING,
-        SlotGeneratorMixinBase.FORM_ERROR: None,
-    }
 
     def handle_none_slot(self, slot) -> str:
         range = self.schema.default_range  # need to figure this out, set at the beginning?
@@ -45,6 +41,7 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
             range = self.__class__.ANY_RANGE_STRING  # TODO: update this
         else:
             inlined_form = self.calculate_inlined_form(slot)
+            slot.annotations["inline_form"] = inlined_form
 
             if inlined_form in (
                 SlotGeneratorMixinBase.FORM_MULTIVALUED_FOREIGN_KEY,
@@ -53,6 +50,10 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
                 logger.warning(f"Foreign key not implemented for slot {slot.name}")
                 range = self.range_id_type(slot)  # TODO: make this a get id function
                 print(range)
+            elif inlined_form in (SlotGeneratorMixinBase.FORM_INLINED_LIST_DICT):
+                range = self.get_class_name(range)
+                range = f"{range}Struct"
+                range = f"pl.List({range})"
             else:
                 range = self.get_class_name(range)
                 range = f"{range}Struct"
@@ -88,8 +89,10 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
         return self.get_enum_name(enum_definition.name)
 
     def handle_multivalued_slot(self, slot, range: str) -> str:
-        if (slot.inlined_as_list is True and self.is_multivalued(slot)) or (
-            slot.inlined is True and slot.inlined_as_list is True and self.is_multivalued(slot)
+        if (
+            (slot.inlined_as_list is True and self.is_multivalued(slot))
+            or (slot.inlined is True and slot.inlined_as_list is True and self.is_multivalued(slot))
+            or not self.range_has_identifier_or_key(slot)
         ):
             range = self.make_multivalued(range)
 
