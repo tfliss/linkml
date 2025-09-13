@@ -22,11 +22,6 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
     SIMPLE_DICT_RANGE_STRING = "pl.Struct"
     ENUM_RANGE_STRING = "pl.Enum"
 
-    #
-    # This might not be needed or needs to be here
-    #
-    # When nested inlining is done, the Pandera validator needs a specific range
-
     def handle_none_slot(self, slot) -> str:
         range = self.schema.default_range  # need to figure this out, set at the beginning?
         if range is None:
@@ -43,11 +38,9 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
             inlined_form = self.calculate_inlined_form(slot)
             slot.annotations["inline_form"] = inlined_form
 
-            if inlined_form in (
-                SlotGeneratorMixinBase.FORM_MULTIVALUED_FOREIGN_KEY,
-                SlotGeneratorMixinBase.FORM_FOREIGN_KEY,
-            ):
-                logger.warning(f"Foreign key not implemented for slot {slot.name}")
+            if inlined_form == SlotGeneratorMixinBase.FORM_MULTIVALUED_FOREIGN_KEY:
+                range = f"pl.List({self.range_id_type(slot)})"
+            elif inlined_form == SlotGeneratorMixinBase.FORM_FOREIGN_KEY:
                 range = self.range_id_type(slot)  # TODO: make this a get id function
                 print(range)
             elif inlined_form in (SlotGeneratorMixinBase.FORM_INLINED_LIST_DICT):
@@ -85,8 +78,11 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
     def handle_enum_slot(self, slot, range: str) -> str:
         """Returns the name of the generated Python variable containing the enum"""
         enum_definition = self.get_enum_definition(range)
+        enum_name = self.get_enum_name(enum_definition.name)
 
-        return self.get_enum_name(enum_definition.name)
+        slot_definition = self.handle_multivalued_slot(slot, enum_name)
+
+        return slot_definition
 
     def handle_multivalued_slot(self, slot, range: str) -> str:
         if (

@@ -56,12 +56,9 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
                     f"Slot {slot.name} uses inlined simple dictionary form. Support is incomplete "
                     "and performance is less efficient than inlined as list form with the current implementation."
                 )
-
-            if inlined_form in (
-                SlotGeneratorMixinBase.FORM_MULTIVALUED_FOREIGN_KEY,
-                SlotGeneratorMixinBase.FORM_FOREIGN_KEY,
-            ):
-                logger.warning(f"Foreign key not implemented for slot {slot.name}")
+            elif inlined_form == SlotGeneratorMixinBase.FORM_MULTIVALUED_FOREIGN_KEY:
+                range = f"list[ID_TYPES['{self.get_class_name(range)}']]"
+            elif inlined_form == SlotGeneratorMixinBase.FORM_FOREIGN_KEY:
                 range = f"ID_TYPES['{self.get_class_name(range)}']"
             else:
                 # TODO: make these setters
