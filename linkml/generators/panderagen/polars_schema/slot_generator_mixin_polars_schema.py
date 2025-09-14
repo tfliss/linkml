@@ -80,9 +80,9 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
         enum_definition = self.get_enum_definition(range)
         enum_name = self.get_enum_name(enum_definition.name)
 
-        slot_definition = self.handle_multivalued_slot(slot, enum_name)
+        # slot_definition = self.handle_multivalued_slot(slot, enum_name)
 
-        return slot_definition
+        return enum_name
 
     def handle_multivalued_slot(self, slot, range: str) -> str:
         if (
@@ -113,7 +113,8 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
                 range = self.make_multivalued(range)
         elif range in self.schemaview.all_enums():
             range = self.handle_enum_slot(slot, range)
-            range = self.handle_multivalued_slot(slot, range)
+            if self.is_multivalued(slot):
+                range = self.handle_multivalued_slot(slot, range)
         else:
             raise Exception(f"Unknown range {range}")
 

@@ -117,6 +117,11 @@ class SlotGeneratorMixinBase(ABC):
 
     def get_identifier_or_key_slot(self, cn: ClassDefinitionName) -> Optional[SlotDefinition]:
         sv = self.schemaview
+
+        if cn not in sv.all_classes():
+            logger.warning(f"Name {cn} not found in schema classes.")
+            return None
+
         id_slot = sv.get_identifier_slot(cn)
         if id_slot:
             return id_slot

@@ -22,7 +22,6 @@ def apply_skip_list(skip_value: str, skip_list: list[str]) -> None:
 
 _PANDERA_SKIP_LIST = [
     "test_date_types",
-    "test_enum_alias",
     "test_slot_any_of",
     "test_inlined_as_simple_dict",
 ]
@@ -91,8 +90,6 @@ _POLARS_SCHEMA_SKIP_LIST = [
     "test_date_types",
     "test_array",
     "test_slot_any_of",
-    "test_enum",
-    "test_alias",
     "test_non_standard",
     "test_cardinality-ClassNameEQ_C__SlotNameEQ_sSPACE1__TypeNameEQ_tSPACE1",
     "test_cardinality-ClassNameEQ_C__SlotNameEQ_1s__TypeNameEQ_T1",

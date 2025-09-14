@@ -12,24 +12,6 @@ from .slot_generator_mixin_pandera import SlotGeneratorMixinPandera
 logger = logging.getLogger(__name__)
 
 
-# Pandera-specific type mapping
-TYPE_MAP = {
-    "panderagen_class_based": {
-        "xsd:string": "str",
-        "xsd:integer": "int",
-        "xsd:int": "int",
-        "xsd:float": "float",
-        "xsd:double": "float",
-        "xsd:boolean": "bool",
-        "xsd:dateTime": "DateTime",
-        "xsd:date": "Date",
-        "xsd:time": "Time",
-        "xsd:anyURI": "str",
-        "xsd:decimal": "float",
-    },
-}
-
-
 class TemplateEnum(Enum):
     CLASS_BASED = "panderagen_class_based"
     OBJECT_BASED = "panderagen_object_based"
@@ -52,10 +34,28 @@ class PanderaDataframeGenerator(DataframeGenerator, EnumGeneratorMixin, ClassGen
 
     TEMPLATE_DIRECTORY = "panderagen_class_based"
 
+    # Pandera-specific type mapping
+    TYPE_MAP = {
+        "xsd:string": "str",
+        "xsd:integer": "int",
+        "xsd:int": "int",
+        "xsd:float": "float",
+        "xsd:double": "float",
+        "xsd:boolean": "bool",
+        "xsd:dateTime": "DateTime()",
+        "xsd:date": "Date",
+        "xsd:time": "Time",
+        "xsd:anyURI": "str",
+        "xsd:decimal": "float",
+    }
+
     # ObjectVars
     inline_validator_mixin: bool = False
     coerce: bool = False
 
+    #
+    # Todo move this into subclasses, the first is pandera the second polars
+    #
     @staticmethod
     def make_multivalued(range: str) -> str:
         if range == "Struct":
@@ -65,11 +65,7 @@ class PanderaDataframeGenerator(DataframeGenerator, EnumGeneratorMixin, ClassGen
     def uri_type_map(self, xsd_uri: str, template: str = None):
         if template is None:
             template = "panderagen_class_based"
-        return TYPE_MAP[template].get(xsd_uri)
-
-    def get_type_map(self) -> dict:
-        """Get the type map for this generator."""
-        return TYPE_MAP
+        return self.TYPE_MAP.get(xsd_uri, None)
 
     def map_type(self, t: TypeDefinition) -> str:
         logger.info(f"type_map definition: {t}")

@@ -1,6 +1,10 @@
+import logging
+
 import pytest
 
 from linkml.generators.panderagen.polars_schema.polars_schema_dataframe_generator import PolarsSchemaDataframeGenerator
+
+logger = logging.getLogger(__file__)
 
 pl = pytest.importorskip("polars", minversion="1.0", reason="Polars >= 1.0 not installed")
 np = pytest.importorskip("numpy", reason="NumPY not installed")
@@ -95,15 +99,15 @@ classes:
         range: datetime
         required: true
         #ifabsent: datetime("2020-01-31 03:23:57")
-      # enum_column:
-      #   description: test enum column
-      #   range: SyntheticEnum
-      #   required: true
-      # ontology_enum_column:
-      #   description: test enum column with ontology values
-      #   range: SyntheticEnumOnt
-      #   required: true
-      #   #ifabsent: SyntheticEnumOnt(ANIMAL)
+      enum_column:
+        description: test enum column
+        range: SyntheticEnum
+        required: true
+      ontology_enum_column:
+        description: test enum column with ontology values
+        range: SyntheticEnumOnt
+        required: true
+        #ifabsent: SyntheticEnumOnt(ANIMAL)
       multivalued_column:
         description: one-to-many form
         range: integer
@@ -187,6 +191,7 @@ def synthetic_schema(synthetic_flat_dataframe_model):
 
 @pytest.fixture(scope="module")
 def compiled_synthetic_schema_module(synthetic_schema):
+    logger.info(f"{synthetic_schema.serialize()}")
     return synthetic_schema.compile_dataframe_model("polars_test_schema")
 
 
@@ -263,12 +268,10 @@ def invalid_simple_dict_column_expression(pl):
 
 
 @pytest.fixture(scope="module")
-def big_synthetic_dataframe(
-    N, column_type_instances, valid_inlined_dict_column_expression, compiled_synthetic_schema_module
-):
+def big_synthetic_dataframe(N, column_type_instances, compiled_synthetic_schema_module):
     """Construct a reasonably sized dataframe that complies with the PanderaSyntheticTable model"""
-    # test_enum = pl.Enum(["ANIMAL", "VEGETABLE", "MINERAL"])
-    # test_ont_enum = pl.Enum(["fiction", "non fiction"])
+    test_enum = pl.Enum(["ANIMAL", "VEGETABLE", "MINERAL"])
+    test_ont_enum = pl.Enum(["fiction", "non fiction"])
 
     # fmt: off
     df = (
@@ -289,16 +292,16 @@ def big_synthetic_dataframe(
                     dtype=pl.Datetime(time_unit='us', time_zone=None),
                     strict=False
                 ),
-                  # "enum_column": pl.Series(
-                  #     np.random.choice(["ANIMAL", "VEGETABLE", "MINERAL"], size=N),
-                  #     dtype=test_enum,
-                  #     strict=False
-                  # ),
-                  # "ontology_enum_column": pl.Series(
-                  #     np.random.choice(["fiction", "non fiction"], size=N),
-                  #     dtype=test_ont_enum,
-                  #     strict=False
-                  # ),
+                  "enum_column": pl.Series(
+                      np.random.choice(["ANIMAL", "VEGETABLE", "MINERAL"], size=N),
+                      dtype=test_enum,
+                      strict=False
+                  ),
+                  "ontology_enum_column": pl.Series(
+                      np.random.choice(["fiction", "non fiction"], size=N),
+                      dtype=test_ont_enum,
+                      strict=False
+                  ),
                 "multivalued_column": [[1, 2, 3],] * N,
                 # "any_type_column": pl.Series([1,] * N, dtype=pl.Object),
                 "cardinality_column": pl.Series(np.arange(1, N+1), dtype=pl.Int64),

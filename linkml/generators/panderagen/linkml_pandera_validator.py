@@ -1,4 +1,5 @@
 import inspect
+import logging
 from functools import wraps
 
 import pandera
@@ -11,6 +12,8 @@ from linkml.generators.panderagen.transforms import (
     NestedStructModelTransform,
     SimpleDictModelTransform,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def handle_validation_exceptions(func):
@@ -111,14 +114,19 @@ class LinkmlPanderaValidator:
     @handle_validation_exceptions
     def _check_nested_struct(cls, data: PolarsData):
         """Use this in a custom check. Pass the nested model as pandera_model."""
-        column_name = data.key
-        nested_cls = cls.get_nested_range(column_name)
+        try:
+            column_name = data.key
+            nested_cls = cls.get_nested_range(column_name)
 
-        df = NestedStructModelTransform.prepare_dataframe(data, column_name, nested_cls)
-        nested_transform = NestedStructModelTransform(nested_cls.to_schema())
-        df = nested_transform.explode_unnest_dataframe(df, column_name)
+            df = NestedStructModelTransform.prepare_dataframe(data, column_name, nested_cls)
+            nested_transform = NestedStructModelTransform(nested_cls.to_schema())
+            df = nested_transform.explode_unnest_dataframe(df, column_name)
 
-        nested_cls.validate(df)
+            nested_cls.validate(df)
+        except Exception as e:
+            logger.info(f"Error validating {data.key}")
+            raise e
+
         return data.lazyframe.select(pl.lit(True))
 
     @classmethod

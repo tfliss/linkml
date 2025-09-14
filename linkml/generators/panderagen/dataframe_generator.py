@@ -68,11 +68,6 @@ class DataframeGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixi
         """Map a LinkML type definition to framework-specific type."""
         pass
 
-    @abstractmethod
-    def get_type_map(self) -> dict:
-        """Get the type map for this generator."""
-        pass
-
     def default_template_path(self):
         """Get the default template path for this generator."""
         return "panderagen_class_based"
@@ -120,7 +115,6 @@ class DataframeGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixi
             metamodel_version=self.schema.metamodel_version,
             model_version=self.schema.version,
             coerce=getattr(self, "coerce", False),
-            type_map=self.get_type_map(),
             template_path=self.template_path,
             pandera_validator_code=pandera_validator_code,
             schema_view=self.schemaview,
@@ -128,12 +122,19 @@ class DataframeGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixi
         )
         return code
 
-    def compile_dataframe_model(self):
+    def compile_dataframe_model(self, module_name: str):
         """
-        Generates and compiles Dataframe model
+        Generates and compiles Dataframe model.
+
+        Make sure module_name doesn't conflict with any imported modules.
+        It will produce unexpected errors.
         """
         dataframe_code = self.serialize()
-        return compile_python(dataframe_code)
+
+        if module_name is None:
+            module_name = "panderagen"
+
+        return compile_python(dataframe_code, module_name=module_name)
 
     def render(self) -> OODocument:
         """
@@ -154,6 +155,8 @@ class DataframeGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixi
 
         # TODO: move to class mixin
         for c in self.ordered_classes():
+            if c.name in self.schemaview.all_enums():
+                continue
             cn = c.name
             safe_cn = camelcase(cn)
             annotations = {}

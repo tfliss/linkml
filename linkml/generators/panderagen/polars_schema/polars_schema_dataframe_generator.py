@@ -10,28 +10,6 @@ from .slot_generator_mixin_polars_schema import SlotGeneratorMixinPolarsSchema
 logger = logging.getLogger(__name__)
 
 
-# Polars-specific type mapping
-TYPE_MAP = {
-    "panderagen_polars_schema": {
-        "xsd:string": "pl.Utf8",
-        "xsd:normalizedString": "pl.Utf8",
-        "xsd:int": "pl:Int32",
-        "xsd:integer": "pl.Int64",
-        "xsd:float": "pl.Float32",
-        "xsd:double": "pl.Float64",
-        "xsd:boolean": "pl.Boolean",
-        "xsd:dateTime": 'pl.Datetime(time_unit="ns", time_zone="UTC")',
-        "xsd:date": "pl.Date",
-        "xsd:time": "pl.Time",
-        "xsd:anyURI": "pl.Utf8",
-        "xsd:decimal": "pl.Float64",
-    },
-}
-
-# Backward compatibility
-POLARS_TYPEMAP = TYPE_MAP.copy()
-
-
 @dataclass
 class PolarsSchemaDataframeGenerator(DataframeGenerator, SlotGeneratorMixinPolarsSchema):
     """
@@ -40,6 +18,22 @@ class PolarsSchemaDataframeGenerator(DataframeGenerator, SlotGeneratorMixinPolar
 
     TEMPLATE_DIRECTORY = "panderagen_polars_schema"
     TEMPLATE_PATH = "polars_schema.jinja2"
+
+    # Polars-specific type mapping
+    TYPE_MAP = {
+        "xsd:string": "pl.Utf8",
+        "xsd:normalizedString": "pl.Utf8",
+        "xsd:int": "pl:Int32",
+        "xsd:integer": "pl.Int64",
+        "xsd:float": "pl.Float64",  # maybe architecture dependent?
+        "xsd:double": "pl.Float64",
+        "xsd:boolean": "pl.Boolean",
+        "xsd:dateTime": 'pl.Datetime(time_unit="us", time_zone="UTC")',
+        "xsd:date": "pl.Date",
+        "xsd:time": "pl.Time",
+        "xsd:anyURI": "pl.Utf8",
+        "xsd:decimal": "pl.Float64",
+    }
 
     def __post_init__(self):
         # Ensure template_path and template_file are set to defaults if not provided
@@ -56,11 +50,7 @@ class PolarsSchemaDataframeGenerator(DataframeGenerator, SlotGeneratorMixinPolar
     def uri_type_map(self, xsd_uri: str, template: str = None):
         if template is None:
             template = PolarsSchemaDataframeGenerator.TEMPLATE_DIRECTORY
-        return TYPE_MAP[template].get(xsd_uri)
-
-    def get_type_map(self) -> dict:
-        """Get the type map for this generator."""
-        return TYPE_MAP
+        return self.TYPE_MAP.get(xsd_uri, None)
 
     def map_type(self, t: TypeDefinition) -> str:
         logger.info(f"type_map definition: {t}")

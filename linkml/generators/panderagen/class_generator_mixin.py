@@ -2,6 +2,14 @@ from .dependency_sorter import DependencySorter
 
 
 class ClassGeneratorMixin:
+    def enum_or_class(self, cn):
+        if cn in self.schemaview.all_enums():
+            return self.schemaview.get_enum(cn, strict=True)
+        elif cn in self.schemaview.all_classes():
+            return self.schemaview.get_class(cn, strict=True)
+        else:
+            raise Exception(f"Unknown class or enum {cn}")
+
     def ordered_classes(self):
         sorter = DependencySorter()
 
@@ -9,7 +17,7 @@ class ClassGeneratorMixin:
         self.add_dependencies_for_hierarchy(sorter)
         sorted_class_names = sorter.sort_dependencies()
 
-        ordered = [self.schemaview.get_class(cn, strict=True) for cn in sorted_class_names]
+        ordered = [self.enum_or_class(cn) for cn in sorted_class_names]
 
         return ordered
 
