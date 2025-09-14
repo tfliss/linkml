@@ -2,8 +2,6 @@ import logging
 from dataclasses import dataclass
 from enum import Enum
 
-from linkml_runtime.linkml_model.meta import TypeDefinition
-
 from ..class_generator_mixin import ClassGeneratorMixin
 from ..dataframe_generator import DataframeGenerator
 from ..enum_generator_mixin import EnumGeneratorMixin
@@ -61,25 +59,3 @@ class PanderaDataframeGenerator(DataframeGenerator, EnumGeneratorMixin, ClassGen
         if range == "Struct":
             return "pl.List"  # WOW
         return f"List[{range}]"
-
-    def uri_type_map(self, xsd_uri: str, template: str = None):
-        if template is None:
-            template = "panderagen_class_based"
-        return self.TYPE_MAP.get(xsd_uri, None)
-
-    def map_type(self, t: TypeDefinition) -> str:
-        logger.info(f"type_map definition: {t}")
-
-        typ = None
-
-        if t.uri:
-            typ = self.uri_type_map(t.uri)
-            if typ is None:
-                typ = self.map_type(self.schemaview.get_type(t.typeof))
-        elif t.typeof:
-            typ = self.map_type(self.schemaview.get_type(t.typeof))
-
-        if typ is None:
-            raise ValueError(f"{t} cannot be mapped to a type")
-
-        return typ

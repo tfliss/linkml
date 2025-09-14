@@ -22,6 +22,9 @@ from .render_adapters.dataframe_class import DataframeClass
 logger = logging.getLogger(__name__)
 
 
+_DATAFRAME_GENERATOR_VERSION = "0.2.0"
+
+
 @dataclass
 class DataframeGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixin, ABC):
     """
@@ -31,7 +34,7 @@ class DataframeGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixi
     # ClassVars
     generatorname = os.path.basename(__file__)
     generatorstem = PurePosixPath(generatorname).stem
-    generatorversion = "0.0.1"
+    generatorversion = _DATAFRAME_GENERATOR_VERSION
     valid_formats = ["python"]
     file_extension = "py"
     java_style = False
@@ -52,20 +55,27 @@ class DataframeGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixi
         """Allow underlying framework to handle default if not specified."""
         return None
 
+    def map_type(self, t: TypeDefinition) -> str | None:
+        logger.info(f"type_map definition: {t}")
+
+        typ = None
+
+        if t.uri:
+            typ = self.TYPE_MAP.get(t.uri, None)
+            if typ is None:
+                typ = self.map_type(self.schemaview.get_type(t.typeof))
+        elif t.typeof:
+            typ = self.map_type(self.schemaview.get_type(t.typeof))
+
+        if typ is None:
+            raise ValueError(f"{t} cannot be mapped to a type")
+
+        return typ
+
     @staticmethod
     @abstractmethod
     def make_multivalued(range: str) -> str:
         """Convert a type to its multivalued equivalent."""
-        pass
-
-    @abstractmethod
-    def uri_type_map(self, xsd_uri: str, template: str = None):
-        """Map XSD URI to framework-specific type."""
-        pass
-
-    @abstractmethod
-    def map_type(self, t: TypeDefinition) -> str:
-        """Map a LinkML type definition to framework-specific type."""
         pass
 
     def default_template_path(self):
