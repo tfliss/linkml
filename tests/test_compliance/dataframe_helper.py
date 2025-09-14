@@ -79,6 +79,7 @@ def check_data_pandera(schema, output, target_class, object_to_validate, coerced
     except Exception as e:
         logger.info(f"Schema Name: {schema['name']}")
         if valid:
+            logger.info(output)
             raise e
 
 

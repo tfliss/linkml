@@ -51,11 +51,6 @@ class PanderaDataframeGenerator(DataframeGenerator, EnumGeneratorMixin, ClassGen
     inline_validator_mixin: bool = False
     coerce: bool = False
 
-    #
-    # Todo move this into subclasses, the first is pandera the second polars
-    #
     @staticmethod
     def make_multivalued(range: str) -> str:
-        if range == "Struct":
-            return "pl.List"  # WOW
-        return f"List[{range}]"
+        return "List"

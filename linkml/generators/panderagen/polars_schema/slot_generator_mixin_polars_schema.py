@@ -2,7 +2,6 @@ import logging
 
 from linkml.utils.helpers import get_range_associated_slots
 
-from ..render_adapters.dataframe_field import DataframeField
 from ..slot_generator_mixin_base import SlotGeneratorMixinBase
 
 logger = logging.getLogger(__file__)
@@ -36,17 +35,20 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
             range = self.__class__.ANY_RANGE_STRING  # TODO: update this
         else:
             inlined_form = self.calculate_inlined_form(slot)
+
+            #
+            # Todo get rid of inline_form it's not used
+            #
             slot.annotations["inline_form"] = inlined_form
 
             if inlined_form == SlotGeneratorMixinBase.FORM_MULTIVALUED_FOREIGN_KEY:
-                range = f"pl.List({self.range_id_type(slot)})"
+                range = self.make_multivalued(f"{self.range_id_type(slot)}")
             elif inlined_form == SlotGeneratorMixinBase.FORM_FOREIGN_KEY:
                 range = self.range_id_type(slot)  # TODO: make this a get id function
                 print(range)
             elif inlined_form in (SlotGeneratorMixinBase.FORM_INLINED_LIST_DICT):
                 range = self.get_class_name(range)
-                range = f"{range}Struct"
-                range = f"pl.List({range})"
+                range = self.make_multivalued(f"{range}Struct")
             else:
                 range = self.get_class_name(range)
                 range = f"{range}Struct"
@@ -80,46 +82,4 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
         enum_definition = self.get_enum_definition(range)
         enum_name = self.get_enum_name(enum_definition.name)
 
-        # slot_definition = self.handle_multivalued_slot(slot, enum_name)
-
         return enum_name
-
-    def handle_multivalued_slot(self, slot, range: str) -> str:
-        if (
-            (slot.inlined_as_list is True and self.is_multivalued(slot))
-            or (slot.inlined is True and slot.inlined_as_list is True and self.is_multivalued(slot))
-            or not self.range_has_identifier_or_key(slot)
-        ):
-            range = self.make_multivalued(range)
-
-        return range
-
-    def handle_slot(self, cn: str, sn: str):
-        safe_sn = self.get_slot_name(sn)
-        slot = self.schemaview.induced_slot(sn, cn)
-        range = slot.range
-        logger.info(safe_sn)
-
-        if slot.alias is not None:
-            safe_sn = self.get_slot_name(slot.alias)
-
-        if range is None:
-            range = self.handle_none_slot(slot)
-        elif range in self.schemaview.all_classes():
-            range = self.handle_class_slot(slot, range)
-        elif range in self.schemaview.all_types():
-            range = self.handle_type_slot(slot, range)
-            if self.is_multivalued(slot):
-                range = self.make_multivalued(range)
-        elif range in self.schemaview.all_enums():
-            range = self.handle_enum_slot(slot, range)
-            if self.is_multivalued(slot):
-                range = self.handle_multivalued_slot(slot, range)
-        else:
-            raise Exception(f"Unknown range {range}")
-
-        return DataframeField(
-            name=safe_sn,
-            source_slot=slot,
-            range=range,
-        )

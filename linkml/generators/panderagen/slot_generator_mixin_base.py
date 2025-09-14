@@ -6,6 +6,8 @@ from linkml_runtime.linkml_model.meta import ClassDefinitionName, SlotDefinition
 
 from linkml.utils.helpers import get_range_associated_slots
 
+from .render_adapters.dataframe_field import DataframeField
+
 logger = logging.getLogger(__file__)
 
 
@@ -173,10 +175,41 @@ class SlotGeneratorMixinBase(ABC):
     def handle_enum_slot(self, slot, range: str) -> str:
         pass
 
-    @abstractmethod
     def handle_multivalued_slot(self, slot, range: str) -> str:
-        pass
+        """Use this for non-class slots only for now"""
+        if (slot.inlined_as_list is True and self.is_multivalued(slot)) or (
+            slot.inlined is True and slot.inlined_as_list is True and self.is_multivalued(slot)
+        ):
+            range = self.make_multivalued(range)
 
-    @abstractmethod
-    def handle_slot(self, cn: str, sn: str):
-        pass
+        return range
+
+    def handle_slot(self, cn: str, sn: str) -> DataframeField:
+        safe_sn = self.get_slot_name(sn)
+        slot = self.schemaview.induced_slot(sn, cn)
+        range = slot.range
+        logger.info(safe_sn)
+
+        if slot.alias is not None:
+            safe_sn = self.get_slot_name(slot.alias)
+
+        if range is None:
+            range = self.handle_none_slot(slot)
+        elif range in self.schemaview.all_classes():
+            range = self.handle_class_slot(slot, range)
+        elif range in self.schemaview.all_types():
+            range = self.handle_type_slot(slot, range)
+            if self.is_multivalued(slot):
+                range = self.make_multivalued(range)
+        elif range in self.schemaview.all_enums():
+            range = self.handle_enum_slot(slot, range)
+            if self.is_multivalued(slot):
+                range = self.handle_multivalued_slot(slot, range)
+        else:
+            raise Exception(f"Unknown range {range}")
+
+        return DataframeField(
+            name=safe_sn,
+            source_slot=slot,
+            range=range,
+        )
