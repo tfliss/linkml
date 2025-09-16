@@ -26,7 +26,7 @@ class PolarsSchemaDataframeGenerator(DataframeGenerator, SlotGeneratorMixinPolar
         "xsd:float": "pl.Float64",  # maybe architecture dependent?
         "xsd:double": "pl.Float64",
         "xsd:boolean": "pl.Boolean",
-        "xsd:dateTime": 'pl.Datetime(time_unit="us", time_zone="UTC")',
+        "xsd:dateTime": 'pl.Datetime(time_unit="us", time_zone=None)',
         "xsd:date": "pl.Date",
         "xsd:time": "pl.Time",
         "xsd:anyURI": "pl.Utf8",

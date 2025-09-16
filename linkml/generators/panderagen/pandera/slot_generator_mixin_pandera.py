@@ -25,7 +25,7 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
     INLINED_FORM_RANGE_PANDERA = {
         SlotGeneratorMixinBase.FORM_INLINED_SIMPLE_DICT: SIMPLE_DICT_RANGE_STRING,
         SlotGeneratorMixinBase.FORM_INLINED_LIST_DICT: CLASS_RANGE_STRING,
-        SlotGeneratorMixinBase.FORM_INLINED_COLLECTION_DICT: CLASS_RANGE_STRING,
+        SlotGeneratorMixinBase.FORM_INLINED_COLLECTION_DICT: ANY_RANGE_STRING,
         SlotGeneratorMixinBase.FORM_INLINED_DICT: CLASS_RANGE_STRING,
         SlotGeneratorMixinBase.FORM_ERROR: None,
     }
@@ -40,6 +40,9 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
     def handle_class_slot(self, slot, range: str) -> str:
         range_info = self.schemaview.all_classes().get(range)
 
+        # TODO: make these setters
+        slot.annotations["reference_class"] = self.get_class_name(range)
+
         if range_info["class_uri"] == SlotGeneratorMixinBase.LINKML_ANY_CURIE:
             range = self.__class__.ANY_RANGE_STRING
         else:
@@ -50,6 +53,7 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
                     f"Slot {slot.name} uses inlined dictionary form,"
                     "which may be less efficient than inlined as list form with the current implementation."
                 )
+                range = SlotGeneratorMixinPandera.INLINED_FORM_RANGE_PANDERA[inlined_form]
             elif inlined_form == SlotGeneratorMixinBase.FORM_INLINED_SIMPLE_DICT:
                 logger.warning(
                     f"Slot {slot.name} uses inlined simple dictionary form. Support is incomplete "
@@ -61,18 +65,17 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
                 range = self.make_multivalued(f"ID_TYPES['{self.get_class_name(range)}']")
             elif inlined_form == SlotGeneratorMixinBase.FORM_FOREIGN_KEY:
                 range = f"ID_TYPES['{self.get_class_name(range)}']"
-            else:
-                # TODO: make these setters
-                slot.annotations["reference_class"] = self.get_class_name(range)
-                # TODO: remove inline_form it isn't used
                 slot.annotations["inline_form"] = inlined_form
-
+            else:
                 range = SlotGeneratorMixinPandera.INLINED_FORM_RANGE_PANDERA[inlined_form]
 
                 if inlined_form == SlotGeneratorMixinBase.FORM_INLINED_SIMPLE_DICT:
                     self.set_simple_dict_inline_details_annotation(slot)
                 elif inlined_form in [SlotGeneratorMixinBase.FORM_INLINED_LIST_DICT]:
                     range = self.make_multivalued(range)
+
+            # TODO: remove inline_form it isn't used
+            slot.annotations["inline_form"] = inlined_form
 
         return range
 

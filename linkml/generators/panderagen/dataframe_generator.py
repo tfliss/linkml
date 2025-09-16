@@ -5,6 +5,7 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import PurePosixPath
+from types import ModuleType
 from typing import Optional
 
 from jinja2 import Environment, PackageLoader
@@ -40,8 +41,8 @@ class DataframeGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixi
     java_style = False
 
     # ObjectVars
-    template_file: Optional[str] = None
-    template_path: Optional[str] = None
+    template_file: str | None = None
+    template_path: str | None = None
 
     gen_classvars: bool = True
     gen_slots: bool = True
@@ -132,7 +133,7 @@ class DataframeGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixi
         )
         return code
 
-    def compile_dataframe_model(self, module_name: str):
+    def compile_dataframe_model(self, module_name: str | None = None) -> ModuleType:
         """
         Generates and compiles Dataframe model.
 
@@ -142,7 +143,7 @@ class DataframeGenerator(OOCodeGenerator, EnumGeneratorMixin, ClassGeneratorMixi
         dataframe_code = self.serialize()
 
         if module_name is None:
-            module_name = "panderagen"
+            module_name = self.template_path
 
         return compile_python(dataframe_code, module_name=module_name)
 

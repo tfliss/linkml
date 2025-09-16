@@ -1,7 +1,9 @@
 import logging
+import sys
 
 import pytest
 
+from linkml.generators.panderagen import PanderaDataframeGenerator
 from linkml.generators.panderagen.polars_schema.polars_schema_dataframe_generator import PolarsSchemaDataframeGenerator
 
 logger = logging.getLogger(__file__)
@@ -119,10 +121,10 @@ classes:
       #   range: integer
       #   required: true
       #   multivalued: true
-      # any_type_column:
-      #   description: needs to have type object
-      #   range: AnyType
-      #   required: true
+      any_type_column:
+        description: needs to have type object
+        range: AnyType
+        required: true
       cardinality_column:
         description: check cardinality
         range: integer
@@ -141,13 +143,13 @@ classes:
         required: true
         inlined: false
         multivalued: false
-    #   inlined_class_column:
-    #     description: test column with another class inlined as a struct
-    #     range: ColumnType
-    #     required: true
-    #     inlined: true
-    #     inlined_as_list: false
-    #     multivalued: true
+      inlined_class_column:
+        description: test column with another class inlined as a struct
+        range: ColumnType
+        required: true
+        inlined: true
+        inlined_as_list: false
+        multivalued: true
       inlined_as_list_column:
         description: test column with another class inlined as a list
         range: ColumnType
@@ -192,7 +194,25 @@ def synthetic_schema(synthetic_flat_dataframe_model):
 @pytest.fixture(scope="module")
 def compiled_synthetic_schema_module(synthetic_schema):
     logger.info(f"{synthetic_schema.serialize()}")
-    return synthetic_schema.compile_dataframe_model("polars_test_schema")
+
+    return synthetic_schema.compile_dataframe_model("panderagen_polars_schema")
+
+
+@pytest.fixture(scope="module")
+def synthetic_pandera_schema(synthetic_flat_dataframe_model):
+    return PanderaDataframeGenerator(synthetic_flat_dataframe_model)
+
+
+@pytest.fixture(scope="module")
+def compiled_synthetic_pandera_schema_module(compiled_synthetic_schema_module, synthetic_pandera_schema):
+    del compiled_synthetic_schema_module  # suppress warning
+
+    logger.info(f"{synthetic_pandera_schema.serialize()}")
+    yield synthetic_pandera_schema.compile_dataframe_model("panderagen_class_based")
+
+    # unload the modules used in this testing
+    sys.modules.pop("panderagen_polars_schema", None)
+    sys.modules.pop("panderagen_class_based", None)
 
 
 @pytest.fixture(scope="module")
@@ -268,7 +288,9 @@ def invalid_simple_dict_column_expression(pl):
 
 
 @pytest.fixture(scope="module")
-def big_synthetic_dataframe(N, column_type_instances, compiled_synthetic_schema_module):
+def big_synthetic_dataframe(
+    N, column_type_instances, valid_inlined_dict_column_expression, compiled_synthetic_schema_module
+):
     """Construct a reasonably sized dataframe that complies with the PanderaSyntheticTable model"""
     test_enum = pl.Enum(["ANIMAL", "VEGETABLE", "MINERAL"])
     test_ont_enum = pl.Enum(["fiction", "non fiction"])
@@ -303,17 +325,19 @@ def big_synthetic_dataframe(N, column_type_instances, compiled_synthetic_schema_
                       strict=False
                   ),
                 "multivalued_column": [[1, 2, 3],] * N,
-                # "any_type_column": pl.Series([1,] * N, dtype=pl.Object),
+                "any_type_column": pl.Series([1,] * N, dtype=pl.Object),
                 "cardinality_column": pl.Series(np.arange(1, N+1), dtype=pl.Int64),
                 "inlined_as_object_column": [ column_type_instances[0] ] * N,
                 "foreign_key_object_column": [ "thing_one" ] * N,
                 # "inlined_simple_dict_column": valid_simple_dict_column_expression,
                 "inlined_as_list_column": [ column_type_instances ] * N,
-                # "inlined_class_column": [ valid_inlined_dict_column_expression ] * N, # is multivalued collection dict
+                "inlined_class_column": [ valid_inlined_dict_column_expression ] * N, # is multivalued collection dict
             },
             schema=compiled_synthetic_schema_module.PanderaSyntheticTable
         )
     )
     # fmt: on
+
+    logger.info(df)
 
     return df

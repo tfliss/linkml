@@ -1,4 +1,5 @@
 import logging
+import sys
 from types import ModuleType
 
 import pytest
@@ -22,7 +23,7 @@ def apply_skip_list(skip_value: str, skip_list: list[str]) -> None:
 
 _PANDERA_SKIP_LIST = [
     "test_date_types",
-    "test_slot_any_of",
+    # "test_slot_any_of",
     "test_inlined_as_simple_dict",
 ]
 
@@ -32,7 +33,8 @@ def generate_polars_schema(schema) -> ModuleType:
     generator = PolarsSchemaDataframeGenerator(schema=schema_yaml, mergeimports=True)
     output = generator.serialize()
     logger.info(f"PolaRS Schema:\n{output}")
-    mod = compile_python(output, module_name="test_polars_schema")
+    mod = generator.compile_dataframe_model
+    mod = compile_python(output, module_name="panderagen_polars_schema")
 
     return mod
 
@@ -41,17 +43,19 @@ def check_data_pandera(schema, output, target_class, object_to_validate, coerced
     apply_skip_list(schema["name"], _PANDERA_SKIP_LIST)
     pl = pytest.importorskip("polars", minversion="1.0", reason="Polars >= 1.0 not installed")
 
+    logger.info(
+        f"Validating {target_class} against {object_to_validate} / {coerced} / {expected_behavior} / "
+        f"{valid}\n\n{yaml.dump(schema)}\n\n{output}"
+    )
+
     try:
-        mod = compile_python(output, module_name="test_pandera_schema")
-        py_cls = getattr(mod, target_class)
-
-        logger.info(
-            f"Validating {target_class} against {object_to_validate} / {coerced} / {expected_behavior} / "
-            f"{valid}\n\n{yaml.dump(schema)}\n\n{output}"
-        )
-
         if True:
             pl_schema = generate_polars_schema(schema)
+            mod = compile_python(output, module_name="panderagen_class_based")
+            py_cls = getattr(mod, target_class)
+
+            py_cls.dump_polars_class()
+
             pl_schema_cls = getattr(pl_schema, target_class)
             dataframe_to_validate = pl.from_dicts([object_to_validate], schema=pl_schema_cls, strict=False)
 
@@ -81,18 +85,22 @@ def check_data_pandera(schema, output, target_class, object_to_validate, coerced
         if valid:
             logger.info(output)
             raise e
+    finally:
+        sys.modules.pop("panderagen_polars_schema", None)
+        sys.modules.pop("panderagen_class_based", None)
 
 
 _POLARS_SCHEMA_SKIP_LIST = [
-    "test_inlined_as_simple_dict",
-    "test_jsonpointer",
-    "test_unique_keys",
-    "test_nested_key",
+    # "test_inlined_as_simple_dict",
+    # "test_jsonpointer",
+    # "test_unique_keys",
+    # "test_nested_key",
     "test_date_types",
-    "test_array",
-    "test_slot_any_of",
-    "test_non_standard",
-    "test_cardinality-ClassNameEQ_C__SlotNameEQ_sSPACE1__TypeNameEQ_tSPACE1",
+    # "test_array",
+    # "test_slot_any_of",
+    # "test_non_standard",
+    # "test_cardinality-ClassNameEQ_C__SlotNameEQ_sSPACE1__TypeNameEQ_tSPACE1",
+    # "test_cardinality-ClassNameEQ_C__SlotNameEQ_1s__TypeNameEQ_T1",
     "test_cardinality-ClassNameEQ_C__SlotNameEQ_1s__TypeNameEQ_T1",
 ]
 
@@ -114,7 +122,7 @@ def check_data_polars_schema(schema, output, target_class, object_to_validate, c
         logger.info(f"Valid: {valid}")
         logger.info(f"Expected: {object_to_validate}")
 
-        mod = compile_python(output, module_name="test_polars_schema")
+        mod = compile_python(output)  # , module_name="test_polars_schema")
         py_cls = getattr(mod, target_class)
 
         dataframe_to_validate = pl.from_dicts([object_to_validate], schema=py_cls)
