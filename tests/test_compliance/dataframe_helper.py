@@ -23,8 +23,6 @@ def apply_skip_list(skip_value: str, skip_list: list[str]) -> None:
 
 _PANDERA_SKIP_LIST = [
     "test_date_types",
-    # "test_slot_any_of",
-    "test_inlined_as_simple_dict",
 ]
 
 
@@ -53,8 +51,6 @@ def check_data_pandera(schema, output, target_class, object_to_validate, coerced
             pl_schema = generate_polars_schema(schema)
             mod = compile_python(output, module_name="panderagen_class_based")
             py_cls = getattr(mod, target_class)
-
-            py_cls.dump_polars_class()
 
             pl_schema_cls = getattr(pl_schema, target_class)
             dataframe_to_validate = pl.from_dicts([object_to_validate], schema=pl_schema_cls, strict=False)
@@ -91,7 +87,6 @@ def check_data_pandera(schema, output, target_class, object_to_validate, coerced
 
 
 _POLARS_SCHEMA_SKIP_LIST = [
-    # "test_inlined_as_simple_dict",
     # "test_jsonpointer",
     # "test_unique_keys",
     # "test_nested_key",

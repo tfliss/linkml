@@ -18,7 +18,7 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
     # these will be moved to a dialect-specific place
     ANY_RANGE_STRING = "Object"
     CLASS_RANGE_STRING = "Struct"
-    SIMPLE_DICT_RANGE_STRING = "Struct"
+    SIMPLE_DICT_RANGE_STRING = "Object"
     ENUM_RANGE_STRING = "Enum"
 
     # When nested inlining is done, the Pandera validator needs a specific range
@@ -59,6 +59,8 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
                     f"Slot {slot.name} uses inlined simple dictionary form. Support is incomplete "
                     "and performance is less efficient than inlined as list form with the current implementation."
                 )
+                range = SlotGeneratorMixinPandera.INLINED_FORM_RANGE_PANDERA[inlined_form]
+                self.set_simple_dict_inline_details_annotation(slot)
             elif inlined_form == SlotGeneratorMixinBase.FORM_INLINED_DICT:
                 range = SlotGeneratorMixinPandera.INLINED_FORM_RANGE_PANDERA[inlined_form]
             elif inlined_form == SlotGeneratorMixinBase.FORM_MULTIVALUED_FOREIGN_KEY:
@@ -69,9 +71,7 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
             else:
                 range = SlotGeneratorMixinPandera.INLINED_FORM_RANGE_PANDERA[inlined_form]
 
-                if inlined_form == SlotGeneratorMixinBase.FORM_INLINED_SIMPLE_DICT:
-                    self.set_simple_dict_inline_details_annotation(slot)
-                elif inlined_form in [SlotGeneratorMixinBase.FORM_INLINED_LIST_DICT]:
+                if inlined_form in [SlotGeneratorMixinBase.FORM_INLINED_LIST_DICT]:
                     range = self.make_multivalued(range)
 
             # TODO: remove inline_form it isn't used

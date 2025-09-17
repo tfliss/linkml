@@ -9,11 +9,15 @@ class CollectionDictModelTransform(ModelTransform):
     validating with a Pandera model.
     """
 
-    def __init__(self, polars_schema, id_col):
+    def __init__(self, nested_cls, polars_schema, polars_schema_dict):
+        self.nested_cls = nested_cls
         self.polars_schema = polars_schema
+        """Polars Schema representing the nested class without the collection dict"""
+
+        self.polars_schema_dict = polars_schema_dict
         """A polars schema representing a collection dict column"""
 
-        self.id_col = id_col
+        self.id_col = nested_cls.get_id_column_name()
         """The ID column in the sense of a LinkML inline collection dict"""
 
     def transform(self, linkml_collection_dict):
@@ -40,22 +44,23 @@ class CollectionDictModelTransform(ModelTransform):
             arr.append(v)
         return arr
 
-    @classmethod
-    def prepare_dataframe(cls, data, column_name, nested_cls):
+    def prepare_dataframe(self, data, column_name: str):
         """Returns just the collection dict column transformed to an inlined list form
 
         note that this method uses collect and iter_rows so is very inefficient
         """
-        id_column = nested_cls.get_id_column_name()
-        polars_schema = nested_cls.to_schema()
-
-        collection_dict_transformer = cls(polars_schema, id_column)
-
         one_column_df = data.lazyframe.select(pl.col(column_name)).collect()
 
-        list_of_structs = [collection_dict_transformer.transform(e) for [e] in one_column_df.iter_rows()]
+        list_of_structs = []
+        for [e] in one_column_df.iter_rows():
+            transformed = self.transform(e)
+            if len(transformed) > 0:
+                list_of_structs.append(transformed)
 
-        return pl.DataFrame(pl.Series(list_of_structs).alias(column_name))
+        if len(list_of_structs) == 0:
+            list_of_structs = None
+
+        return pl.DataFrame(pl.Series(list_of_structs, dtype=self.polars_schema_dict).alias(column_name))
 
     def explode_unnest_dataframe(self, df, column_name):
         """Filter, explode and unnest for collection dict."""

@@ -43,7 +43,7 @@ MODEL_COLUMNS = [
     "inlined_as_object_column",
     "inlined_class_column",
     "inlined_as_list_column",
-    # "inlined_simple_dict_column",
+    "inlined_simple_dict_column",
 ]
 
 
@@ -188,13 +188,13 @@ def test_inlined_object_nested_range_type_error(
     assert error_details["error"] == "SchemaError(\"expected column 'x' to have type Int64, got Float64\")"
 
 
-@pytest.mark.skipif(True, reason="New PolaRS schema generator doesn't support loading simple_dicts.")
+@pytest.mark.xfail(reason="floats are getting coerced to ints")
 def test_inlined_simple_dict_nested_range_type_error(
     N, compiled_synthetic_pandera_schema_module, big_synthetic_dataframe, invalid_simple_dict_column_expression
 ):
     """Change the simple dict column values from Int64 to Float64"""
     df_with_nested_simple_dict_type_error = big_synthetic_dataframe.with_columns(
-        pl.Series([invalid_simple_dict_column_expression] * N).alias("inlined_simple_dict_column")
+        pl.Series([invalid_simple_dict_column_expression] * N, dtype=pl.Object).alias("inlined_simple_dict_column")
     )
 
     with pytest.raises(pandera.errors.SchemaErrors) as e:

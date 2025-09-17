@@ -49,7 +49,10 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
             elif inlined_form in (SlotGeneratorMixinBase.FORM_INLINED_LIST_DICT):
                 range = self.get_class_name(range)
                 range = self.make_multivalued(f"{range}Struct")
-            elif inlined_form in (SlotGeneratorMixinBase.FORM_INLINED_COLLECTION_DICT):
+            elif inlined_form in (
+                SlotGeneratorMixinBase.FORM_INLINED_COLLECTION_DICT,
+                SlotGeneratorMixinBase.FORM_INLINED_SIMPLE_DICT,
+            ):
                 range = SlotGeneratorMixinPolarsSchema.ANY_RANGE_STRING
             else:
                 range = self.get_class_name(range)

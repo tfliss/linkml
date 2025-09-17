@@ -1,4 +1,3 @@
-import inspect
 import logging
 from functools import wraps
 
@@ -23,10 +22,10 @@ def handle_validation_exceptions(func):
             return func(*args, **kwargs)
         except pl.exceptions.PanicException:
             data = args[2] if len(args) > 2 else kwargs.get("data")
-            return data.lazyframe.select(pl.lit(False))
         except pandera.errors.SchemaError as e:
             raise e
-        except Exception:
+        except Exception as e:
+            logger.info(e)
             data = args[2] if len(args) > 2 else kwargs.get("data")
             return data.lazyframe.select(pl.lit(False))
 
@@ -38,56 +37,72 @@ class LinkmlPanderaValidator:
     def get_id_column_name(cls):
         return cls._id_name
 
-    @classmethod
-    def _simple_dict_fields(cls, column_name):
-        details = cls._INLINE_DETAILS[column_name]  # <-- THESE ARE GOING ON THE OUTER CLASS
+    # @classmethod
+    # def _simple_dict_fields(cls, column_name):
+    #     details = cls._INLINE_DETAILS[column_name]  # <-- THESE ARE GOING ON THE OUTER CLASS
 
-        return (details["id"], details["other"])
+    #     return (details["id"], details["other"])
 
     @classmethod
-    def _prepare_simple_dict(cls, data: PolarsData, polars_schema: pl.Schema):
+    def _prepare_simple_dict(
+        cls, data: PolarsData, id_col: str, other_col: str, polars_schema: pl.Schema, polars_schema_dict
+    ):
         """Returns just the simple dict column transformed to an inlined list form
 
         note that this method uses collect and iter_rows so is very inefficient
         """
         column_name = data.key
 
-        (id_column, other_column) = cls._simple_dict_fields(column_name)
+        simple_dict_transformer = SimpleDictModelTransform(id_col, other_col, polars_schema, polars_schema_dict)
 
-        simple_dict_transformer = SimpleDictModelTransform(polars_schema, id_column, other_column)
-
+        # TODO: check if need to do the filter for null here
         one_column_df = data.lazyframe.select(pl.col(column_name)).collect()
 
-        list_of_structs = [simple_dict_transformer.transform(e) for [e] in one_column_df.iter_rows()]
+        # TODO: try doing this as a generator
+        list_of_structs = []
+        for [e] in one_column_df.iter_rows():
+            transformed = simple_dict_transformer.transform(e)
+            if len(transformed) > 0:
+                list_of_structs.append(transformed)
 
-        return pl.DataFrame(pl.Series(list_of_structs).alias(column_name))
+        if len(list_of_structs) == 0:
+            list_of_structs = None
+
+        return pl.DataFrame(pl.Series(list_of_structs, dtype=polars_schema_dict, strict=True).alias(column_name))
 
     @classmethod
     @handle_validation_exceptions
-    def _check_simple_dict(cls, data: PolarsData, polars_schema: pl.Schema):
+    def _check_simple_dict(
+        cls,
+        data: PolarsData,
+        nested_cls: type,
+        id_col: str,
+        other_col: str,
+        polars_schema: pl.Schema,
+        polars_schema_dict,
+    ):
         """
         The 'simple dict' format, in which the key serves as a local identifier is not a good match for a PolaRS
         DataFrame. At present the format is
         """
         column_name = data.key
 
-        df = cls._prepare_simple_dict(data, polars_schema)
-
-        simple_transform = SimpleDictModelTransform(polars_schema, *cls._simple_dict_fields(column_name))
+        df = cls._prepare_simple_dict(data, id_col, other_col, polars_schema, polars_schema_dict)
+        simple_transform = SimpleDictModelTransform(id_col, other_col, polars_schema, polars_schema_dict)
         df = simple_transform.explode_unnest_dataframe(df, column_name)
 
-        nested_cls = cls.get_nested_range(column_name)
         nested_cls.validate(df)
         return data.lazyframe.select(pl.lit(True))
 
     @classmethod
     @handle_validation_exceptions
-    def _check_collection_struct(cls, data: PolarsData, nested_cls: type, polars_schema: pl.Schema):
+    def _check_collection_struct(
+        cls, data: PolarsData, nested_cls: type, polars_schema: pl.Schema, polars_schema_struct
+    ):
         column_name = data.key
 
-        df = CollectionDictModelTransform.prepare_dataframe(data, column_name, nested_cls)
-
-        collection_transform = CollectionDictModelTransform(polars_schema, nested_cls.get_id_column_name())
+        collection_transform = CollectionDictModelTransform(nested_cls, polars_schema, polars_schema_struct)
+        df = collection_transform.prepare_dataframe(data, column_name)
         df = collection_transform.explode_unnest_dataframe(df, column_name)
 
         nested_cls.validate(df)
@@ -125,15 +140,15 @@ class LinkmlPanderaValidator:
 
         return data.lazyframe.select(pl.lit(True))
 
-    @classmethod
-    def get_nested_range(cls, column_name):
-        """Resolve a nested class range at runtime.
+    # @classmethod
+    # def get_nested_range(cls, column_name):
+    #     """Resolve a nested class range at runtime.
 
-        Nested classes are not stored in the pandera schema,
-        but rather in the _NESTED_RANGES dictionary as strings.
-        """
-        nested_cls_name = cls._NESTED_RANGES[column_name]
-        shared_model_module = inspect.getmodule(cls)
-        nested_cls = getattr(shared_model_module, nested_cls_name)
+    #     Nested classes are not stored in the pandera schema,
+    #     but rather in the _NESTED_RANGES dictionary as strings.
+    #     """
+    #     nested_cls_name = cls._NESTED_RANGES[column_name]
+    #     shared_model_module = inspect.getmodule(cls)
+    #     nested_cls = getattr(shared_model_module, nested_cls_name)
 
-        return nested_cls
+    #     return nested_cls

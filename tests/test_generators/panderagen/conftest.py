@@ -157,13 +157,13 @@ classes:
         inlined: true
         inlined_as_list: true
         multivalued: true
-      # inlined_simple_dict_column:
-      #   description: test column inlined using simple dict form
-      #   range: SimpleDictType
-      #   multivalued: true
-      #   inlined: true
-      #   inlined_as_list: false
-      #   required: true
+      inlined_simple_dict_column:
+        description: test column inlined using simple dict form
+        range: SimpleDictType
+        multivalued: true
+        inlined: true
+        inlined_as_list: false
+        required: true
 
 
 enums:
@@ -282,14 +282,18 @@ def valid_simple_dict_column_expression():
 
 
 @pytest.fixture(scope="module")
-def invalid_simple_dict_column_expression(pl):
+def invalid_simple_dict_column_expression():
     """synthetic data with float values that does not conform to the inlined_simple_dict_column schema."""
-    return {"A": 1.0, "B": 2.0, "C": 3.0}
+    return {"A": 1.1, "B": 2.2, "C": 3.3}
 
 
 @pytest.fixture(scope="module")
 def big_synthetic_dataframe(
-    N, column_type_instances, valid_inlined_dict_column_expression, compiled_synthetic_schema_module
+    N,
+    column_type_instances,
+    valid_inlined_dict_column_expression,
+    valid_simple_dict_column_expression,
+    compiled_synthetic_schema_module,
 ):
     """Construct a reasonably sized dataframe that complies with the PanderaSyntheticTable model"""
     test_enum = pl.Enum(["ANIMAL", "VEGETABLE", "MINERAL"])
@@ -324,12 +328,12 @@ def big_synthetic_dataframe(
                       dtype=test_ont_enum,
                       strict=False
                   ),
-                "multivalued_column": [[1, 2, 3],] * N,
-                "any_type_column": pl.Series([1,] * N, dtype=pl.Object),
-                "cardinality_column": pl.Series(np.arange(1, N+1), dtype=pl.Int64),
+                "multivalued_column": [[1, 2, 3]] * N,
+                "any_type_column": [1] * N,
+                "cardinality_column": np.arange(1, N+1),
                 "inlined_as_object_column": [ column_type_instances[0] ] * N,
                 "foreign_key_object_column": [ "thing_one" ] * N,
-                # "inlined_simple_dict_column": valid_simple_dict_column_expression,
+                "inlined_simple_dict_column": [valid_simple_dict_column_expression] * N,
                 "inlined_as_list_column": [ column_type_instances ] * N,
                 "inlined_class_column": [ valid_inlined_dict_column_expression ] * N, # is multivalued collection dict
             },
