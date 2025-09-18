@@ -20,13 +20,26 @@ class DataframeField(OOField):
         inline_id_other_name: str = None,
         reference_class: str = None,
         inline_form: str = None,
+        permissible_values: list[str] = None,
     ):
         super().__init__(name, range, default_value, annotations, source_slot)
         self.inline_id_column_name = inline_id_column_name
         self.inline_id_other_name = inline_id_other_name
         self.reference_class = reference_class
         self.inline_form = inline_form
+        self._permissible_values = permissible_values
 
+    @property
+    def permissible_values(self):
+        return self._permissible_values or []
+
+    @permissible_values.setter
+    def permissible_values(self, value):
+        self._permissible_values = value
+
+    #
+    # convenience methods
+    #
     def maximum_value(self):
         return self.source_slot.maximum_value
 
@@ -41,9 +54,6 @@ class DataframeField(OOField):
 
     def maximum_cardinality(self):
         return self.source_slot.maximum_cardinality
-
-    def permissible_values(self):
-        return self.source_slot.annotations._get("permissible_values", [])
 
     def required(self):
         return self.source_slot.required

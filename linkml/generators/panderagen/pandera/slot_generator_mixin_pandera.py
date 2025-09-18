@@ -109,7 +109,7 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
         range = slot.range
         enum_definition = self.get_enum_definition(range)
         range = self.__class__.ENUM_RANGE_STRING
-        slot.annotations["permissible_values"] = self.get_enum_permissible_values(enum_definition)
+        field.permissible_values = self.get_enum_permissible_values(enum_definition)
 
         if self.is_multivalued(slot):
             range = self.handle_multivalued_slot(slot, range)
