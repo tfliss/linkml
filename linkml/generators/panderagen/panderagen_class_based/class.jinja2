@@ -14,19 +14,6 @@
 {%- endmacro -%}
 
 
-{%- macro render_inline_form(cls) -%}
-{#-
-    This is a meta object with information used by the various check methods
--#}
-    _INLINE_FORM = {
-    {%- for field in cls.fields -%}
-        {%- if field.inline_form() %}
-        "{{ field.name }}": "{{ field.inline_form() }}",
-{% endif -%}
-    {%- endfor %}
-    }
-{%- endmacro -%}
-
 {%- macro render_slots(cls) -%}
     {{ slot_macros.id_slot_name_class_variable(cls) }}
     {%- if (cls.fields | length) == 0 %}
@@ -51,5 +38,4 @@ class {{ generator.get_class_name(cls.name) }}({{ render_parent_classes(cls, gen
 {% endif -%}
     {{ render_slots(cls) }}
     {{ custom_checks.render_custom_checks(cls) }}
-    {{ render_inline_form(cls) }}
 {% endmacro -%}

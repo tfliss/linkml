@@ -35,11 +35,7 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
             range = self.__class__.ANY_RANGE_STRING  # TODO: update this
         else:
             inlined_form = self.calculate_inlined_form(slot)
-
-            #
-            # Todo get rid of inline_form it's not used
-            #
-            slot.annotations["inline_form"] = inlined_form
+            field.inline_form = inlined_form
 
             if inlined_form == SlotGeneratorMixinBase.FORM_MULTIVALUED_FOREIGN_KEY:
                 range = self.make_multivalued(f"{self.range_id_type(slot)}")

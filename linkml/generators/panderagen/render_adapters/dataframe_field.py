@@ -18,19 +18,14 @@ class DataframeField(OOField):
         source_slot=None,
         inline_id_column_name: str = None,
         inline_id_other_name: str = None,
+        reference_class: str = None,
+        inline_form: str = None,
     ):
         super().__init__(name, range, default_value, annotations, source_slot)
         self.inline_id_column_name = inline_id_column_name
         self.inline_id_other_name = inline_id_other_name
-
-    def inline_form(self):
-        return self.source_slot.annotations._get("inline_form", None)
-
-    def reference_class(self):
-        try:
-            return self.source_slot.annotations._get("reference_class", None)
-        except Exception:
-            return None
+        self.reference_class = reference_class
+        self.inline_form = inline_form
 
     def maximum_value(self):
         return self.source_slot.maximum_value
@@ -58,10 +53,3 @@ class DataframeField(OOField):
 
     def description(self):
         return self.source_slot.description
-
-    def is_list(self):
-        return (
-            self.source_slot.multivalued
-            or self.source_slot.inlined_as_list
-            or self.inline_form() in ("inline_list_dict", "list_foreign_key")
-        )

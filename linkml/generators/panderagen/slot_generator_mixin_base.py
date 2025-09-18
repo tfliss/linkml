@@ -134,6 +134,8 @@ class SlotGeneratorMixinBase(ABC):
             return None
 
     def calculate_inlined_form(self, slot: SlotDefinition) -> str:
+        """Based on entries in the slot definition, do a table lookup
+        to determine a summarized form for association handling."""
         inline_form_key = self.inlined_form_key(slot)
         logger.info(f"Inline form key {slot.name}: {inline_form_key}")
         inline_form = self.INTERNAL_INLINED_FORM.get(inline_form_key, SlotGeneratorMixinBase.FORM_ERROR)
