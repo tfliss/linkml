@@ -1,8 +1,11 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from linkml_runtime.linkml_model.meta import ClassDefinitionName, SlotDefinition
+
+if TYPE_CHECKING:
+    from .dataframe_generator import DataframeGenerator
 
 from linkml.utils.helpers import get_range_associated_slots
 
@@ -11,18 +14,14 @@ from .render_adapters.dataframe_field import DataframeField
 logger = logging.getLogger(__file__)
 
 
-class SlotGeneratorMixinBase(ABC):
+class SlotHandlerBase(ABC):
     """
     An abstract base class providing a template for classes that generate
     dataframe fields from LinkML models.
-
-    The idea here is to implement helper methods more specific to dataframes
-    slot processing in this class, override things specific to individual dataframes
-    and then pass the generator instance with all mixins to the jinja template
-    for formatting.
-
-    Mostly this provides common method names for each of the generators
     """
+
+    def __init__(self, generator: "DataframeGenerator"):
+        self.generator = generator
 
     LINKML_ANY_CURIE = "linkml:Any"
 
@@ -53,9 +52,9 @@ class SlotGeneratorMixinBase(ABC):
         if slot_id is None:
             return None
 
-        slot_id_range = self.schemaview.all_types().get(slot_id.range)
+        slot_id_range = self.generator.schemaview.all_types().get(slot_id.range)
 
-        return self.map_type(slot_id_range)
+        return self.generator.map_type(slot_id_range)
 
     def range_has_identifier_or_key(self, slot):
         """Determine if the slot range has an identifier or key."""
@@ -118,7 +117,7 @@ class SlotGeneratorMixinBase(ABC):
     }
 
     def get_identifier_or_key_slot(self, cn: ClassDefinitionName) -> Optional[SlotDefinition]:
-        sv = self.schemaview
+        sv = self.generator.schemaview
 
         if cn not in sv.all_classes():
             logger.warning(f"Name {cn} not found in schema classes.")
@@ -138,7 +137,7 @@ class SlotGeneratorMixinBase(ABC):
         to determine a summarized form for association handling."""
         inline_form_key = self.inlined_form_key(slot)
         logger.info(f"Inline form key {slot.name}: {inline_form_key}")
-        inline_form = self.INTERNAL_INLINED_FORM.get(inline_form_key, SlotGeneratorMixinBase.FORM_ERROR)
+        inline_form = self.INTERNAL_INLINED_FORM.get(inline_form_key, SlotHandlerBase.FORM_ERROR)
         logger.info(f"Inline form {slot.name}: {inline_form}")
 
         return inline_form
@@ -146,7 +145,7 @@ class SlotGeneratorMixinBase(ABC):
     def calculate_simple_dict(self, slot: SlotDefinition):
         """slot is the container for the simple dict slot"""
 
-        (_, range_simple_dict_value_slot, _) = get_range_associated_slots(self.schemaview, slot.range)
+        (_, range_simple_dict_value_slot, _) = get_range_associated_slots(self.generator.schemaview, slot.range)
 
         return range_simple_dict_value_slot
 
@@ -167,7 +166,7 @@ class SlotGeneratorMixinBase(ABC):
         pass
 
     def get_enum_definition(self, range: str):
-        return self.schemaview.all_enums().get(range)
+        return self.generator.schemaview.all_enums().get(range)
 
     @abstractmethod
     def handle_enum_slot(self, slot, field) -> None:
@@ -178,18 +177,18 @@ class SlotGeneratorMixinBase(ABC):
         if (slot.inlined_as_list is True and self.is_multivalued(slot)) or (
             slot.inlined is True and slot.inlined_as_list is True and self.is_multivalued(slot)
         ):
-            range = self.make_multivalued(range)
+            range = self.generator.make_multivalued(range)
 
         return range
 
     def handle_slot(self, cn: str, sn: str) -> DataframeField:
-        safe_sn = self.get_slot_name(sn)
-        slot = self.schemaview.induced_slot(sn, cn)
+        safe_sn = self.generator.get_slot_name(sn)
+        slot = self.generator.schemaview.induced_slot(sn, cn)
         # range = slot.range
         logger.info(safe_sn)
 
         if slot.alias is not None:
-            safe_sn = self.get_slot_name(slot.alias)
+            safe_sn = self.generator.get_slot_name(slot.alias)
 
         field = DataframeField(name=safe_sn, source_slot=slot)
 
@@ -197,11 +196,11 @@ class SlotGeneratorMixinBase(ABC):
 
         if range is None:
             self.handle_none_slot(slot, field)
-        elif range in self.schemaview.all_classes():
+        elif range in self.generator.schemaview.all_classes():
             self.handle_class_slot(slot, field)
-        elif range in self.schemaview.all_types():
+        elif range in self.generator.schemaview.all_types():
             self.handle_type_slot(slot, field)
-        elif range in self.schemaview.all_enums():
+        elif range in self.generator.schemaview.all_enums():
             range = self.handle_enum_slot(slot, field)
         else:
             raise Exception(f"Unknown range {range}")

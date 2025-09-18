@@ -2,10 +2,8 @@ import logging
 from dataclasses import dataclass
 from enum import Enum
 
-from ..class_generator_mixin import ClassGeneratorMixin
 from ..dataframe_generator import DataframeGenerator
-from ..enum_generator_mixin import EnumGeneratorMixin
-from .slot_generator_mixin_pandera import SlotGeneratorMixinPandera
+from .slot_handler_pandera import SlotHandlerPandera
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +16,7 @@ class TemplateEnum(Enum):
 
 
 @dataclass
-class PanderaDataframeGenerator(DataframeGenerator, EnumGeneratorMixin, ClassGeneratorMixin, SlotGeneratorMixinPandera):
+class PanderaDataframeGenerator(DataframeGenerator):
     """
     Generates Pandera python classes from a LinkML schema.
 
@@ -50,6 +48,10 @@ class PanderaDataframeGenerator(DataframeGenerator, EnumGeneratorMixin, ClassGen
     # ObjectVars
     inline_validator_mixin: bool = False
     coerce: bool = False
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.slot_handler = SlotHandlerPandera(self)
 
     @staticmethod
     def make_multivalued(range: str) -> str:

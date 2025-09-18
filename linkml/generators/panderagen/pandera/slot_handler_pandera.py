@@ -1,13 +1,18 @@
 import logging
+from typing import TYPE_CHECKING
 
 from linkml.utils.helpers import get_range_associated_slots
 
-from ..slot_generator_mixin_base import SlotGeneratorMixinBase
+from ..render_adapters.dataframe_field import DataframeField
+from ..slot_handler_base import SlotHandlerBase
+
+if TYPE_CHECKING:
+    pass
 
 logger = logging.getLogger(__file__)
 
 
-class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
+class SlotHandlerPandera(SlotHandlerBase):
     """
     Prior to rendering the dataframe schema, this class provides
     and adapter between the LinkML model and schema view
@@ -23,16 +28,16 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
 
     # When nested inlining is done, the Pandera validator needs a specific range
     INLINED_FORM_RANGE_PANDERA = {
-        SlotGeneratorMixinBase.FORM_INLINED_SIMPLE_DICT: SIMPLE_DICT_RANGE_STRING,
-        SlotGeneratorMixinBase.FORM_INLINED_LIST_DICT: CLASS_RANGE_STRING,
-        SlotGeneratorMixinBase.FORM_INLINED_COLLECTION_DICT: ANY_RANGE_STRING,
-        SlotGeneratorMixinBase.FORM_INLINED_DICT: CLASS_RANGE_STRING,
-        SlotGeneratorMixinBase.FORM_ERROR: None,
+        SlotHandlerBase.FORM_INLINED_SIMPLE_DICT: SIMPLE_DICT_RANGE_STRING,
+        SlotHandlerBase.FORM_INLINED_LIST_DICT: CLASS_RANGE_STRING,
+        SlotHandlerBase.FORM_INLINED_COLLECTION_DICT: ANY_RANGE_STRING,
+        SlotHandlerBase.FORM_INLINED_DICT: CLASS_RANGE_STRING,
+        SlotHandlerBase.FORM_ERROR: None,
     }
 
-    def handle_none_slot(self, slot, field) -> None:
+    def handle_none_slot(self, slot, field: DataframeField) -> None:
         del slot  # unused for now
-        range = self.schema.default_range  # need to figure this out, set at the beginning?
+        range = self.generator.schema.default_range  # need to figure this out, set at the beginning?
 
         if range is None:
             range = "str"
@@ -41,47 +46,47 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
 
     def handle_class_slot(self, slot, field) -> None:
         range = slot.range
-        range_info = self.schemaview.all_classes().get(range)
+        range_info = self.generator.schemaview.all_classes().get(range)
 
-        field.reference_class = self.get_class_name(range)
+        field.reference_class = self.generator.get_class_name(range)
 
-        if range_info["class_uri"] == SlotGeneratorMixinBase.LINKML_ANY_CURIE:
+        if range_info and range_info["class_uri"] == SlotHandlerBase.LINKML_ANY_CURIE:
             range = self.__class__.ANY_RANGE_STRING
         else:
             inlined_form = self.calculate_inlined_form(slot)
             field.inline_form = inlined_form
 
-            if inlined_form == SlotGeneratorMixinBase.FORM_INLINED_COLLECTION_DICT:
+            if inlined_form == SlotHandlerBase.FORM_INLINED_COLLECTION_DICT:
                 logger.warning(
                     f"Slot {slot.name} uses inlined dictionary form,"
                     "which may be less efficient than inlined as list form with the current implementation."
                 )
-                range = SlotGeneratorMixinPandera.INLINED_FORM_RANGE_PANDERA[inlined_form]
-            elif inlined_form == SlotGeneratorMixinBase.FORM_INLINED_SIMPLE_DICT:
+                range = SlotHandlerPandera.INLINED_FORM_RANGE_PANDERA[inlined_form]
+            elif inlined_form == SlotHandlerBase.FORM_INLINED_SIMPLE_DICT:
                 logger.warning(
                     f"Slot {slot.name} uses inlined simple dictionary form. Support is incomplete "
                     "and performance is less efficient than inlined as list form with the current implementation."
                 )
-                range = SlotGeneratorMixinPandera.INLINED_FORM_RANGE_PANDERA[inlined_form]
+                range = SlotHandlerPandera.INLINED_FORM_RANGE_PANDERA[inlined_form]
                 self.set_simple_dict_inline_details(slot, field)
-            elif inlined_form == SlotGeneratorMixinBase.FORM_INLINED_DICT:
-                range = SlotGeneratorMixinPandera.INLINED_FORM_RANGE_PANDERA[inlined_form]
-            elif inlined_form == SlotGeneratorMixinBase.FORM_MULTIVALUED_FOREIGN_KEY:
-                range = self.make_multivalued(f"ID_TYPES['{self.get_class_name(range)}']")
-            elif inlined_form == SlotGeneratorMixinBase.FORM_FOREIGN_KEY:
-                range = f"ID_TYPES['{self.get_class_name(range)}']"
+            elif inlined_form == SlotHandlerBase.FORM_INLINED_DICT:
+                range = SlotHandlerPandera.INLINED_FORM_RANGE_PANDERA[inlined_form]
+            elif inlined_form == SlotHandlerBase.FORM_MULTIVALUED_FOREIGN_KEY:
+                range = self.generator.make_multivalued(f"ID_TYPES['{self.generator.get_class_name(range)}']")
+            elif inlined_form == SlotHandlerBase.FORM_FOREIGN_KEY:
+                range = f"ID_TYPES['{self.generator.get_class_name(range)}']"
             else:
-                range = SlotGeneratorMixinPandera.INLINED_FORM_RANGE_PANDERA[inlined_form]
+                range = SlotHandlerPandera.INLINED_FORM_RANGE_PANDERA[inlined_form]
 
-                if inlined_form in [SlotGeneratorMixinBase.FORM_INLINED_LIST_DICT]:
-                    range = self.make_multivalued(range)
+                if inlined_form in [SlotHandlerBase.FORM_INLINED_LIST_DICT]:
+                    range = self.generator.make_multivalued(range)
 
         field.range = range
 
     def set_simple_dict_inline_details(self, slot, field) -> None:
         """Extra metadata is to help with the simple dict case"""
         (range_id_slot, range_simple_dict_value_slot, _) = get_range_associated_slots(  # range_required_slots,
-            self.schemaview, slot.range
+            self.generator.schemaview, slot.range
         )
 
         field.inline_id_column_name = range_id_slot.name
@@ -91,13 +96,13 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
         """non-inlined class slots have been temporarily removed but this will be needed to support them"""
         # TODO: resolve this earlier
         range = slot.range
-        field.range = f"ID_TYPES['{self.get_class_name(range)}']"
+        field.range = f"ID_TYPES['{self.generator.get_class_name(range)}']"
 
     def handle_type_slot(self, slot, field) -> None:
         range = slot.range
 
-        t = self.schemaview.all_types().get(range)
-        range = self.map_type(t)
+        t = self.generator.schemaview.all_types().get(range)
+        range = self.generator.map_type(t)
 
         if self.is_multivalued(slot):
             range = self.handle_multivalued_slot(slot, range)
@@ -109,7 +114,7 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
         range = slot.range
         enum_definition = self.get_enum_definition(range)
         range = self.__class__.ENUM_RANGE_STRING
-        field.permissible_values = self.get_enum_permissible_values(enum_definition)
+        field.permissible_values = self.generator.enum_handler.get_enum_permissible_values(enum_definition)
 
         if self.is_multivalued(slot):
             range = self.handle_multivalued_slot(slot, range)

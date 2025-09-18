@@ -3,13 +3,13 @@ from dataclasses import dataclass
 
 # TODO: separate these all out for PolaRS
 from ..dataframe_generator import DataframeGenerator
-from .slot_generator_mixin_polars_schema import SlotGeneratorMixinPolarsSchema
+from .slot_handler_polars import SlotHandlerPolars
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class PolarsSchemaDataframeGenerator(DataframeGenerator, SlotGeneratorMixinPolarsSchema):
+class PolarsSchemaDataframeGenerator(DataframeGenerator):
     """
     Generates Polars schema classes from a LinkML schema.
     """
@@ -40,6 +40,7 @@ class PolarsSchemaDataframeGenerator(DataframeGenerator, SlotGeneratorMixinPolar
         if self.template_file is None:
             self.template_file = PolarsSchemaDataframeGenerator.TEMPLATE_PATH
         super().__post_init__()
+        self.slot_handler = SlotHandlerPolars(self)
 
     @staticmethod
     def make_multivalued(range: str) -> str:
