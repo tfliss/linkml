@@ -43,13 +43,13 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
         range = slot.range
         range_info = self.schemaview.all_classes().get(range)
 
-        # TODO: make these setters
-        slot.annotations["reference_class"] = self.get_class_name(range)
+        field.reference_class = self.get_class_name(range)
 
         if range_info["class_uri"] == SlotGeneratorMixinBase.LINKML_ANY_CURIE:
             range = self.__class__.ANY_RANGE_STRING
         else:
             inlined_form = self.calculate_inlined_form(slot)
+            field.inline_form = inlined_form
 
             if inlined_form == SlotGeneratorMixinBase.FORM_INLINED_COLLECTION_DICT:
                 logger.warning(
@@ -70,15 +70,11 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
                 range = self.make_multivalued(f"ID_TYPES['{self.get_class_name(range)}']")
             elif inlined_form == SlotGeneratorMixinBase.FORM_FOREIGN_KEY:
                 range = f"ID_TYPES['{self.get_class_name(range)}']"
-                slot.annotations["inline_form"] = inlined_form
             else:
                 range = SlotGeneratorMixinPandera.INLINED_FORM_RANGE_PANDERA[inlined_form]
 
                 if inlined_form in [SlotGeneratorMixinBase.FORM_INLINED_LIST_DICT]:
                     range = self.make_multivalued(range)
-
-            # TODO: remove inline_form it isn't used
-            slot.annotations["inline_form"] = inlined_form
 
         field.range = range
 
