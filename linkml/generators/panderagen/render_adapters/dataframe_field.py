@@ -9,6 +9,20 @@ class DataframeField(OOField):
     until the dataframe requirements are fully understood.
     """
 
+    def __init__(
+        self,
+        name,
+        range=None,
+        default_value=None,
+        annotations=None,
+        source_slot=None,
+        inline_id_column_name: str = None,
+        inline_id_other_name: str = None,
+    ):
+        super().__init__(name, range, default_value, annotations, source_slot)
+        self.inline_id_column_name = inline_id_column_name
+        self.inline_id_other_name = inline_id_other_name
+
     def inline_form(self):
         return self.source_slot.annotations._get("inline_form", None)
 
@@ -35,9 +49,6 @@ class DataframeField(OOField):
 
     def permissible_values(self):
         return self.source_slot.annotations._get("permissible_values", [])
-
-    def inline_details(self):
-        return self.source_slot.annotations._get("inline_details", None)
 
     def required(self):
         return self.source_slot.required

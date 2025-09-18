@@ -149,30 +149,26 @@ class SlotGeneratorMixinBase(ABC):
         return range_simple_dict_value_slot
 
     @abstractmethod
-    def handle_none_slot(self, slot) -> str:
+    def handle_none_slot(self, field) -> None:
         pass
 
     @abstractmethod
-    def handle_class_slot(self, slot, range: str) -> str:
+    def handle_class_slot(self, slot, field) -> None:
         pass
 
     @abstractmethod
-    def set_simple_dict_inline_details_annotation(self, slot):
+    def handle_non_inlined_class_slot(self, slot, field) -> None:
         pass
 
     @abstractmethod
-    def handle_non_inlined_class_slot(self, slot, range: str) -> str:
-        pass
-
-    @abstractmethod
-    def handle_type_slot(self, slot, range: str) -> str:
+    def handle_type_slot(self, slot, field) -> None:
         pass
 
     def get_enum_definition(self, range: str):
         return self.schemaview.all_enums().get(range)
 
     @abstractmethod
-    def handle_enum_slot(self, slot, range: str) -> str:
+    def handle_enum_slot(self, slot, field) -> None:
         pass
 
     def handle_multivalued_slot(self, slot, range: str) -> str:
@@ -187,29 +183,25 @@ class SlotGeneratorMixinBase(ABC):
     def handle_slot(self, cn: str, sn: str) -> DataframeField:
         safe_sn = self.get_slot_name(sn)
         slot = self.schemaview.induced_slot(sn, cn)
-        range = slot.range
+        # range = slot.range
         logger.info(safe_sn)
 
         if slot.alias is not None:
             safe_sn = self.get_slot_name(slot.alias)
 
+        field = DataframeField(name=safe_sn, source_slot=slot)
+
+        range = slot.range
+
         if range is None:
-            range = self.handle_none_slot(slot)
+            self.handle_none_slot(slot, field)
         elif range in self.schemaview.all_classes():
-            range = self.handle_class_slot(slot, range)
+            self.handle_class_slot(slot, field)
         elif range in self.schemaview.all_types():
-            range = self.handle_type_slot(slot, range)
-            if self.is_multivalued(slot):
-                range = self.make_multivalued(range)
+            self.handle_type_slot(slot, field)
         elif range in self.schemaview.all_enums():
-            range = self.handle_enum_slot(slot, range)
-            if self.is_multivalued(slot):
-                range = self.handle_multivalued_slot(slot, range)
+            range = self.handle_enum_slot(slot, field)
         else:
             raise Exception(f"Unknown range {range}")
 
-        return DataframeField(
-            name=safe_sn,
-            source_slot=slot,
-            range=range,
-        )
+        return field

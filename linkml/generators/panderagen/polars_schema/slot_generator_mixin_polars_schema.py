@@ -1,7 +1,5 @@
 import logging
 
-from linkml.utils.helpers import get_range_associated_slots
-
 from ..slot_generator_mixin_base import SlotGeneratorMixinBase
 
 logger = logging.getLogger(__file__)
@@ -21,14 +19,16 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
     SIMPLE_DICT_RANGE_STRING = "pl.Struct"
     ENUM_RANGE_STRING = "pl.Enum"
 
-    def handle_none_slot(self, slot) -> str:
+    def handle_none_slot(self, slot, field) -> None:
+        del slot
         range = self.schema.default_range  # need to figure this out, set at the beginning?
         if range is None:
             range = "str"
 
-        return range
+        field.range = range
 
-    def handle_class_slot(self, slot, range: str) -> str:
+    def handle_class_slot(self, slot, field) -> None:
+        range = slot.range
         range_info = self.schemaview.all_classes().get(range)
 
         if range_info["class_uri"] == SlotGeneratorMixinBase.LINKML_ANY_CURIE:
@@ -58,33 +58,28 @@ class SlotGeneratorMixinPolarsSchema(SlotGeneratorMixinBase):
                 range = self.get_class_name(range)
                 range = f"{range}Struct"
 
-        return range
+        field.range = range
 
-    def set_simple_dict_inline_details_annotation(self, slot):
-        """Extra metadata is to help with the simple dict case"""
-        (range_id_slot, range_simple_dict_value_slot, _) = get_range_associated_slots(  # range_required_slots,
-            self.schemaview, slot.range
-        )
-
-        simple_dict_id = range_id_slot.name
-        other_slot = range_simple_dict_value_slot.name
-        slot.annotations["inline_details"] = {"id": simple_dict_id, "other": other_slot}
-
-    def handle_non_inlined_class_slot(self, slot, range: str) -> str:
+    def handle_non_inlined_class_slot(self, slot, field) -> None:
         """non-inlined class slots have been temporarily removed but this will be needed to support them"""
-        return f"ID_TYPES['{self.get_class_name(range)}']"
+        range = slot.range
+        field.range = f"ID_TYPES['{self.get_class_name(range)}']"
 
-    def handle_type_slot(self, slot, range: str) -> str:
-        del slot  # unused for now
-
-        t = self.schemaview.all_types().get(range)
+    def handle_type_slot(self, slot, field) -> None:
+        t = self.schemaview.all_types().get(slot.range)
         range = self.map_type(t)
 
-        return range
+        if self.is_multivalued(slot):
+            range = self.handle_multivalued_slot(slot, range)
 
-    def handle_enum_slot(self, slot, range: str) -> str:
+        field.range = range
+
+    def handle_enum_slot(self, slot, field) -> None:
         """Returns the name of the generated Python variable containing the enum"""
-        enum_definition = self.get_enum_definition(range)
+        enum_definition = self.get_enum_definition(slot.range)
         enum_name = self.get_enum_name(enum_definition.name)
 
-        return enum_name
+        if self.is_multivalued(slot):
+            enum_name = self.handle_multivalued_slot(slot, enum_name)
+
+        field.range = enum_name

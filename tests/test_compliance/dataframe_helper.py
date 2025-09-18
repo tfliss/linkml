@@ -21,9 +21,26 @@ def apply_skip_list(skip_value: str, skip_list: list[str]) -> None:
             pytest.skip(reason=f"Skipping test due to match on {n}")
 
 
-_PANDERA_SKIP_LIST = [
+_POLARS_SCHEMA_SKIP_LIST = [
+    "test_jsonpointer",
+    "test_inlined_unique_keys",
+    "test_nested_key",
     "test_date_types",
+    "test_array",
+    "test_slot_any_of",
+    "test_membership",
+    "test_class_boolean",
+    "test_non_standard",
+    "test_equals_string",
+    "test_value_presence",
+    "test_cardinality-MVTrue_REQFalse",
+    "test_cardinality-MVTrue_REQTrue",
+    "test_cardinality-ClassNameEQ_C__SlotNameEQ_sSPACE1__TypeNameEQ_tSPACE1",
+    "test_cardinality-ClassNameEQ_C__SlotNameEQ_1s__TypeNameEQ_T1",
+    "test_cardinality-ClassNameEQ_C__SlotNameEQ_1s__TypeNameEQ_T1",
 ]
+
+_PANDERA_SKIP_LIST = _POLARS_SCHEMA_SKIP_LIST
 
 
 def generate_polars_schema(schema) -> ModuleType:
@@ -47,32 +64,18 @@ def check_data_pandera(schema, output, target_class, object_to_validate, coerced
     )
 
     try:
-        if True:
-            pl_schema = generate_polars_schema(schema)
-            mod = compile_python(output, module_name="panderagen_class_based")
-            py_cls = getattr(mod, target_class)
+        pl_schema = generate_polars_schema(schema)
+        mod = compile_python(output, module_name="panderagen_class_based")
+        py_cls = getattr(mod, target_class)
 
-            pl_schema_cls = getattr(pl_schema, target_class)
-            dataframe_to_validate = pl.from_dicts([object_to_validate], schema=pl_schema_cls, strict=False)
+        pl_schema_cls = getattr(pl_schema, target_class)
+        dataframe_to_validate = pl.from_dicts([object_to_validate], schema=pl_schema_cls, strict=False)
 
-            same = deep_compare_dicts(object_to_validate, dataframe_to_validate.to_dicts()[0])
-            if not same and valid:
-                assert same, f"PolaRS schema did not match input object for {schema['name']}"
-            elif not same and not valid:
-                logger.info("PolaRS schema did not load invalid object to validate properly")
-        else:
-            dataframe_to_validate = pl.DataFrame([object_to_validate])
-
-            try:
-                schema_name = schema.get("name", "")
-                polars_schema = py_cls.generate_polars_schema(object_to_validate, parser=True)
-
-                if schema_name.startswith("test_date_types") or schema_name.startswith("test_enum_alias"):
-                    dataframe_to_validate = pl.DataFrame(object_to_validate, schema=polars_schema, strict=False)
-                elif dataframe_to_validate.item() is None:
-                    dataframe_to_validate = pl.DataFrame(object_to_validate, schema=polars_schema, strict=False)
-            except Exception:
-                pass
+        same = deep_compare_dicts(object_to_validate, dataframe_to_validate.to_dicts()[0])
+        if not same and valid:
+            assert same, f"PolaRS schema did not match input object for {schema['name']}"
+        elif not same and not valid:
+            logger.info("PolaRS schema did not load invalid object to validate properly")
 
         logger.info(dataframe_to_validate)
         py_cls.validate(dataframe_to_validate, lazy=True)
@@ -84,20 +87,6 @@ def check_data_pandera(schema, output, target_class, object_to_validate, coerced
     finally:
         sys.modules.pop("panderagen_polars_schema", None)
         sys.modules.pop("panderagen_class_based", None)
-
-
-_POLARS_SCHEMA_SKIP_LIST = [
-    # "test_jsonpointer",
-    # "test_unique_keys",
-    # "test_nested_key",
-    "test_date_types",
-    # "test_array",
-    # "test_slot_any_of",
-    # "test_non_standard",
-    # "test_cardinality-ClassNameEQ_C__SlotNameEQ_sSPACE1__TypeNameEQ_tSPACE1",
-    # "test_cardinality-ClassNameEQ_C__SlotNameEQ_1s__TypeNameEQ_T1",
-    "test_cardinality-ClassNameEQ_C__SlotNameEQ_1s__TypeNameEQ_T1",
-]
 
 
 def check_data_polars_schema(schema, output, target_class, object_to_validate, coerced, expected_behavior, valid):

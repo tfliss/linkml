@@ -15,7 +15,7 @@ np = pytest.importorskip("numpy", reason="NumPY not installed")
 @pytest.fixture(scope="module")
 def N():
     """Number of rows in the test dataframes, 1M is enough to be real but not strain most machines."""
-    return 1000
+    return 10000
 
 
 @pytest.fixture(scope="module")

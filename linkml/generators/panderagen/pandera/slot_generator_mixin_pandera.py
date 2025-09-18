@@ -30,14 +30,17 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
         SlotGeneratorMixinBase.FORM_ERROR: None,
     }
 
-    def handle_none_slot(self, slot) -> str:
+    def handle_none_slot(self, slot, field) -> None:
+        del slot  # unused for now
         range = self.schema.default_range  # need to figure this out, set at the beginning?
+
         if range is None:
             range = "str"
 
-        return range
+        field.range = range
 
-    def handle_class_slot(self, slot, range: str) -> str:
+    def handle_class_slot(self, slot, field) -> None:
+        range = slot.range
         range_info = self.schemaview.all_classes().get(range)
 
         # TODO: make these setters
@@ -60,7 +63,7 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
                     "and performance is less efficient than inlined as list form with the current implementation."
                 )
                 range = SlotGeneratorMixinPandera.INLINED_FORM_RANGE_PANDERA[inlined_form]
-                self.set_simple_dict_inline_details_annotation(slot)
+                self.set_simple_dict_inline_details(slot, field)
             elif inlined_form == SlotGeneratorMixinBase.FORM_INLINED_DICT:
                 range = SlotGeneratorMixinPandera.INLINED_FORM_RANGE_PANDERA[inlined_form]
             elif inlined_form == SlotGeneratorMixinBase.FORM_MULTIVALUED_FOREIGN_KEY:
@@ -77,34 +80,42 @@ class SlotGeneratorMixinPandera(SlotGeneratorMixinBase):
             # TODO: remove inline_form it isn't used
             slot.annotations["inline_form"] = inlined_form
 
-        return range
+        field.range = range
 
-    def set_simple_dict_inline_details_annotation(self, slot):
+    def set_simple_dict_inline_details(self, slot, field) -> None:
         """Extra metadata is to help with the simple dict case"""
         (range_id_slot, range_simple_dict_value_slot, _) = get_range_associated_slots(  # range_required_slots,
             self.schemaview, slot.range
         )
 
-        simple_dict_id = range_id_slot.name
-        other_slot = range_simple_dict_value_slot.name
-        slot.annotations["inline_details"] = {"id": simple_dict_id, "other": other_slot}
+        field.inline_id_column_name = range_id_slot.name
+        field.inline_other_column_name = range_simple_dict_value_slot.name
 
-    def handle_non_inlined_class_slot(self, slot, range: str) -> str:
+    def handle_non_inlined_class_slot(self, slot, field) -> None:
         """non-inlined class slots have been temporarily removed but this will be needed to support them"""
-        return f"ID_TYPES['{self.get_class_name(range)}']"
+        # TODO: resolve this earlier
+        range = slot.range
+        field.range = f"ID_TYPES['{self.get_class_name(range)}']"
 
-    def handle_type_slot(self, slot, range: str) -> str:
-        del slot  # unused for now
+    def handle_type_slot(self, slot, field) -> None:
+        range = slot.range
 
         t = self.schemaview.all_types().get(range)
         range = self.map_type(t)
 
-        return range
+        if self.is_multivalued(slot):
+            range = self.handle_multivalued_slot(slot, range)
 
-    def handle_enum_slot(self, slot, range: str) -> str:
+        field.range = range
+
+    def handle_enum_slot(self, slot, field) -> None:
         """Returns the name of the generated Python variable containing the enum"""
+        range = slot.range
         enum_definition = self.get_enum_definition(range)
         range = self.__class__.ENUM_RANGE_STRING
         slot.annotations["permissible_values"] = self.get_enum_permissible_values(enum_definition)
 
-        return range
+        if self.is_multivalued(slot):
+            range = self.handle_multivalued_slot(slot, range)
+
+        field.range = range

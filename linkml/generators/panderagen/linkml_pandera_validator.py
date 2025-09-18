@@ -37,12 +37,6 @@ class LinkmlPanderaValidator:
     def get_id_column_name(cls):
         return cls._id_name
 
-    # @classmethod
-    # def _simple_dict_fields(cls, column_name):
-    #     details = cls._INLINE_DETAILS[column_name]  # <-- THESE ARE GOING ON THE OUTER CLASS
-
-    #     return (details["id"], details["other"])
-
     @classmethod
     def _prepare_simple_dict(
         cls, data: PolarsData, id_col: str, other_col: str, polars_schema: pl.Schema, polars_schema_dict
@@ -139,16 +133,3 @@ class LinkmlPanderaValidator:
             raise e
 
         return data.lazyframe.select(pl.lit(True))
-
-    # @classmethod
-    # def get_nested_range(cls, column_name):
-    #     """Resolve a nested class range at runtime.
-
-    #     Nested classes are not stored in the pandera schema,
-    #     but rather in the _NESTED_RANGES dictionary as strings.
-    #     """
-    #     nested_cls_name = cls._NESTED_RANGES[column_name]
-    #     shared_model_module = inspect.getmodule(cls)
-    #     nested_cls = getattr(shared_model_module, nested_cls_name)
-
-    #     return nested_cls
