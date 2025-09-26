@@ -8,7 +8,7 @@
 {%- endmacro -%}
 
 {%- macro render_schema(cls, generator) -%}
-    {{ schema_name(cls, generator) }}Dict = pl.Schema({{ '{' }}
+    {{ schema_name(cls, generator) }}Dict = {{ '{' }}
     {%- if generator.roll_up_slots %}
     {%- set fields = cls.all_fields -%}
     {%- else -%}
@@ -17,7 +17,7 @@
     {%- for field in fields %}
     {{ slot_macros.render_slot(field, generator) }}
     {%- endfor %}
-{{ '}' }})
+{{ '}' }}
 
 {{ schema_name(cls, generator) }}Struct = pl.Struct({{ schema_name(cls, generator) }}Dict)
 

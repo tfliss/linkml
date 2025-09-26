@@ -45,30 +45,26 @@ MODEL_COLUMNS = [
 
 
 @pytest.fixture(scope="module")
-def generator():
-    yamlfile = "/Users/tpfliss/git/linkml/examples/PersonSchema/personinfo.yaml"
+def yamlfile():
+    return "examples/PersonSchema/personinfo.yaml"
 
-    #
-    # OK, this bit needs to be fixed, it's not clear how it works
-    #
-    return PolarsSchemaDataframeGenerator(yamlfile)
+
+@pytest.fixture(scope="module")
+def generator(yamlfile):
+    return PolarsSchemaDataframeGenerator(yamlfile, backing_form="serialized")
 
 
 @pytest.fixture(scope="module")
 def polars_generator_cli(generator):
-    generator = DataframeGeneratorCli(
+    return DataframeGeneratorCli(
         generator=generator, template_path="panderagen_polars_schema", template_file="polars_schema.jinja2"
     )
-
-    return generator
 
 
 @pytest.fixture(scope="module")
 def compiled_model(polars_generator_cli):
     logger.info(polars_generator_cli.serialize())
-    model = polars_generator_cli.generator.compile_dataframe_model("pandera_test_module")
-
-    return model
+    return polars_generator_cli.generator.compile_dataframe_model("pandera_test_module")
 
 
 @pytest.mark.parametrize(

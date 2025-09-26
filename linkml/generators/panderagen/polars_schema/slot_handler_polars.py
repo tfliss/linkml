@@ -1,10 +1,8 @@
 import logging
-from typing import TYPE_CHECKING
+
+from linkml.utils.helpers import get_range_associated_slots
 
 from ..slot_handler_base import SlotHandlerBase
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__file__)
 
@@ -15,6 +13,20 @@ class SlotHandlerPolars(SlotHandlerBase):
     and adapter between the LinkML model and schema view
     and the rendering engine.
     """
+
+    def backing_inlined_form(self, inlined_form: str) -> str:
+        loaded_form = {
+            SlotHandlerBase.FORM_INLINED_SIMPLE_DICT: SlotHandlerBase.FORM_INLINED_SIMPLE_DICT,
+            SlotHandlerBase.FORM_INLINED_COLLECTION_DICT: SlotHandlerBase.FORM_INLINED_LIST_DICT,
+        }
+
+        if self.generator.backing_form in "serialization":
+            return inlined_form
+        elif self.generator.backing_form in ["loaded", "transform"]:
+            return loaded_form.get(inlined_form, inlined_form)
+
+        logger.warning(f"Unknown backing form: {self.generator.backing_form}")
+        return inlined_form
 
     # constants used to render the schema
     # these will be moved to a dialect-specific place
@@ -34,11 +46,12 @@ class SlotHandlerPolars(SlotHandlerBase):
     def handle_class_slot(self, slot, field) -> None:
         range = slot.range
         range_info = self.generator.schemaview.all_classes().get(range)
+        field.reference_class = self.generator.get_class_name(range)
 
         if range_info["class_uri"] == SlotHandlerBase.LINKML_ANY_CURIE:
             range = self.__class__.ANY_RANGE_STRING  # TODO: update this
         else:
-            inlined_form = self.calculate_inlined_form(slot)
+            inlined_form = self.backing_inlined_form(self.calculate_inlined_form(slot))
             field.inline_form = inlined_form
 
             if inlined_form == SlotHandlerBase.FORM_MULTIVALUED_FOREIGN_KEY:
@@ -49,16 +62,30 @@ class SlotHandlerPolars(SlotHandlerBase):
             elif inlined_form in (SlotHandlerBase.FORM_INLINED_LIST_DICT):
                 range = self.generator.get_class_name(range)
                 range = self.generator.make_multivalued(f"{range}Struct")
-            elif inlined_form in (
-                SlotHandlerBase.FORM_INLINED_COLLECTION_DICT,
-                SlotHandlerBase.FORM_INLINED_SIMPLE_DICT,
-            ):
+            elif inlined_form == SlotHandlerBase.FORM_INLINED_COLLECTION_DICT:
+                range = SlotHandlerPolars.ANY_RANGE_STRING
+            elif inlined_form == SlotHandlerBase.FORM_INLINED_SIMPLE_DICT:
+                self.set_simple_dict_inline_details(slot, field)
                 range = SlotHandlerPolars.ANY_RANGE_STRING
             else:
                 range = self.generator.get_class_name(range)
                 range = f"{range}Struct"
 
         field.range = range
+
+    def set_simple_dict_inline_details(self, slot, field) -> None:
+        """Extra metadata is to help with the simple dict case"""
+        (range_id_slot, range_simple_dict_value_slot, _) = get_range_associated_slots(  # range_required_slots,
+            self.generator.schemaview, slot.range
+        )
+
+        field.inline_id_column_name = range_id_slot.name
+        field.inline_other_column_name = range_simple_dict_value_slot.name
+
+        other_range = range_simple_dict_value_slot.range
+
+        if other_range in self.generator.schemaview.all_classes():
+            field.inline_other_range = self.generator.get_class_name(other_range)
 
     def handle_non_inlined_class_slot(self, slot, field) -> None:
         """non-inlined class slots have been temporarily removed but this will be needed to support them"""

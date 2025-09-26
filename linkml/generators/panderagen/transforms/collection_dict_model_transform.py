@@ -44,12 +44,12 @@ class CollectionDictModelTransform(ModelTransform):
             arr.append(v)
         return arr
 
-    def prepare_dataframe(self, data, column_name: str):
+    def prepare_series(self, lf: pl.LazyFrame, column_name: str) -> pl.Series:
         """Returns just the collection dict column transformed to an inlined list form
 
         note that this method uses collect and iter_rows so is very inefficient
         """
-        one_column_df = data.lazyframe.select(pl.col(column_name)).collect()
+        one_column_df = lf.select(pl.col(column_name)).collect()
 
         list_of_structs = []
         for [e] in one_column_df.iter_rows():
@@ -60,7 +60,13 @@ class CollectionDictModelTransform(ModelTransform):
         if len(list_of_structs) == 0:
             list_of_structs = None
 
-        return pl.DataFrame(pl.Series(list_of_structs, dtype=self.polars_schema_dict).alias(column_name))
+        return pl.Series(column_name, list_of_structs, dtype=self.polars_schema_dict)
+
+    def prepare_dataframe(self, data, column_name: str):
+        """Returns just the collection dict column transformed to an inlined list form"""
+        # list_of_structs = data.lazyframe.select(pl.col(column_name)).collect().to_dicts().get(column_name)
+
+        return pl.DataFrame(self.prepare_series(data.lazyframe, column_name))
 
     def explode_unnest_dataframe(self, df, column_name):
         """Filter, explode and unnest for collection dict."""

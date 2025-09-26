@@ -60,6 +60,30 @@ classes:
         range: integer
         required: true
 
+  # NestedSimpleDictType:
+  #   description: A list of inlined objects within a simple dict
+  #   attributes:
+  #     id:
+  #       identifier: True
+  #       range: string
+  #     nested_list:
+  #       range: ColumnType
+  #       multivalued: True
+  #       inlined: True
+  #       inlined_as_list: False
+
+  # DoubleNestedSimpleDictType:
+  #   description: A list of inlined objects within a simple dict
+  #   attributes:
+  #     id:
+  #       identifier: True
+  #       range: string
+  #     nested_simple_dict_list:
+  #       range: NestedSimpleDictType
+  #       multivalued: True
+  #       inlined: True
+  #       inlined_as_list: False
+
   PanderaSyntheticTable:
     description: A flat table with a reasonably complete assortment of datatypes.
     attributes:
@@ -164,7 +188,20 @@ classes:
         inlined: true
         inlined_as_list: false
         required: true
-
+      # inlined_nested_simple_dict_column:
+      #   description: test column inlined using simple dict form and list struct other
+      #   range: NestedSimpleDictType
+      #   multivalued: true
+      #   inlined: true
+      #   inlined_as_list: false
+      #   required: true
+      # double_nested_simple_dict_column:
+      #   description: test column inlined using simple dict form and list struct other
+      #   range: DoubleNestedSimpleDictType
+      #   multivalued: true
+      #   inlined: true
+      #   inlined_as_list: false
+      #   required: true
 
 enums:
   SyntheticEnum:
@@ -184,7 +221,7 @@ enums:
 
 @pytest.fixture(scope="module")
 def synthetic_schema(synthetic_flat_dataframe_model):
-    generator = PolarsSchemaDataframeGenerator(synthetic_flat_dataframe_model)
+    generator = PolarsSchemaDataframeGenerator(synthetic_flat_dataframe_model, backing_form="serialized")
     generator.template_file = "polars_schema.jinja2"
     generator.template_path = "panderagen_polars_schema"
 
@@ -196,6 +233,38 @@ def compiled_synthetic_schema_module(synthetic_schema):
     logger.info(f"{synthetic_schema.serialize()}")
 
     return synthetic_schema.compile_dataframe_model("panderagen_polars_schema")
+
+
+@pytest.fixture(scope="module")
+def synthetic_schema_loaded(synthetic_flat_dataframe_model):
+    generator = PolarsSchemaDataframeGenerator(synthetic_flat_dataframe_model, backing_form="loaded")
+    generator.template_file = "polars_schema.jinja2"
+    generator.template_path = "panderagen_polars_schema"
+
+    return generator
+
+
+@pytest.fixture(scope="module")
+def compiled_synthetic_schema_loaded(synthetic_schema_loaded):
+    logger.info(f"SYNTHETIC SCHEMA LOADED\n{synthetic_schema_loaded.serialize()}")
+
+    return synthetic_schema_loaded.compile_dataframe_model("panderagen_polars_schema_loaded")
+
+
+@pytest.fixture(scope="module")
+def synthetic_schema_transform(synthetic_flat_dataframe_model):
+    generator = PolarsSchemaDataframeGenerator(synthetic_flat_dataframe_model, backing_form="transform")
+    generator.template_file = "load_transformer.jinja2"
+    generator.template_path = "panderagen_polars_schema"
+
+    return generator
+
+
+@pytest.fixture(scope="module")
+def compiled_synthetic_schema_transform(synthetic_schema_transform):
+    logger.info(f"{synthetic_schema_transform.serialize()}")
+
+    return synthetic_schema_transform.compile_dataframe_model("panderagen_polars_schema_transform")
 
 
 @pytest.fixture(scope="module")
@@ -282,6 +351,22 @@ def valid_simple_dict_column_expression():
 
 
 @pytest.fixture(scope="module")
+def valid_nested_simple_dict_column_expression(column_type_instances):
+    """synthetic data that conforms to the nested_simple_dict_column schema."""
+    return {"A": column_type_instances, "B": column_type_instances, "C": column_type_instances}
+
+
+@pytest.fixture(scope="module")
+def valid_double_nested_simple_dict_column_expression(valid_nested_simple_dict_column_expression):
+    """synthetic data that conforms to the doubld nested simple dict column schema."""
+    return {
+        "X": valid_nested_simple_dict_column_expression,
+        "Y": valid_nested_simple_dict_column_expression,
+        "Z": valid_nested_simple_dict_column_expression,
+    }
+
+
+@pytest.fixture(scope="module")
 def invalid_simple_dict_column_expression():
     """synthetic data with float values that does not conform to the inlined_simple_dict_column schema."""
     return {"A": 1.1, "B": 2.2, "C": 3.3}
@@ -293,6 +378,8 @@ def big_synthetic_dataframe(
     column_type_instances,
     valid_inlined_dict_column_expression,
     valid_simple_dict_column_expression,
+    valid_nested_simple_dict_column_expression,
+    valid_double_nested_simple_dict_column_expression,
     compiled_synthetic_schema_module,
 ):
     """Construct a reasonably sized dataframe that complies with the PanderaSyntheticTable model"""
@@ -334,6 +421,8 @@ def big_synthetic_dataframe(
                 "inlined_as_object_column": [ column_type_instances[0] ] * N,
                 "foreign_key_object_column": [ "thing_one" ] * N,
                 "inlined_simple_dict_column": [valid_simple_dict_column_expression] * N,
+                #"inlined_nested_simple_dict_column": [ valid_nested_simple_dict_column_expression] * N,
+                #"double_nested_simple_dict_column": [valid_double_nested_simple_dict_column_expression] * N,
                 "inlined_as_list_column": [ column_type_instances ] * N,
                 "inlined_class_column": [ valid_inlined_dict_column_expression ] * N, # is multivalued collection dict
             },
