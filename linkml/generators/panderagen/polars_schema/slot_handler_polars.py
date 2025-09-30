@@ -16,13 +16,13 @@ class SlotHandlerPolars(SlotHandlerBase):
 
     def backing_inlined_form(self, inlined_form: str) -> str:
         loaded_form = {
-            SlotHandlerBase.FORM_INLINED_SIMPLE_DICT: SlotHandlerBase.FORM_INLINED_SIMPLE_DICT,
+            SlotHandlerBase.FORM_INLINED_SIMPLE_DICT: SlotHandlerBase.FORM_INLINED_LIST_DICT,
             SlotHandlerBase.FORM_INLINED_COLLECTION_DICT: SlotHandlerBase.FORM_INLINED_LIST_DICT,
         }
 
-        if self.generator.backing_form in "serialization":
+        if self.generator.backing_form in ["serialization", "transform"]:
             return inlined_form
-        elif self.generator.backing_form in ["loaded", "transform"]:
+        elif self.generator.backing_form in ["loaded"]:
             return loaded_form.get(inlined_form, inlined_form)
 
         logger.warning(f"Unknown backing form: {self.generator.backing_form}")
@@ -84,8 +84,14 @@ class SlotHandlerPolars(SlotHandlerBase):
 
         other_range = range_simple_dict_value_slot.range
 
-        if other_range in self.generator.schemaview.all_classes():
+        if other_range in self.generator.schemaview.all_enums():
+            field.inline_other_range = self.generator.get_enum_name(other_range)
+        elif other_range in self.generator.schemaview.all_types():
+            field.inline_other_range = self.generator.map_type(self.generator.schemaview.all_types().get(other_range))
+        elif other_range in self.generator.schemaview.all_classes():
             field.inline_other_range = self.generator.get_class_name(other_range)
+        else:
+            raise ValueError(f"Cannot find range {other_range} for simple dict slot {slot.name}")
 
     def handle_non_inlined_class_slot(self, slot, field) -> None:
         """non-inlined class slots have been temporarily removed but this will be needed to support them"""

@@ -19,6 +19,21 @@ class SlotHandlerPandera(SlotHandlerBase):
     and the rendering engine.
     """
 
+    # TODO: maybe can move this to base class
+    def backing_inlined_form(self, inlined_form: str) -> str:
+        loaded_form = {
+            SlotHandlerBase.FORM_INLINED_SIMPLE_DICT: SlotHandlerBase.FORM_INLINED_LIST_DICT,
+            SlotHandlerBase.FORM_INLINED_COLLECTION_DICT: SlotHandlerBase.FORM_INLINED_LIST_DICT,
+        }
+
+        if self.generator.backing_form in "serialization":
+            return inlined_form
+        elif self.generator.backing_form in ["loaded", "transform"]:
+            return loaded_form.get(inlined_form, inlined_form)
+
+        logger.warning(f"Unknown backing form: {self.generator.backing_form}")
+        return inlined_form
+
     # constants used to render the schema
     # these will be moved to a dialect-specific place
     ANY_RANGE_STRING = "Object"
@@ -53,7 +68,7 @@ class SlotHandlerPandera(SlotHandlerBase):
         if range_info and range_info["class_uri"] == SlotHandlerBase.LINKML_ANY_CURIE:
             range = self.__class__.ANY_RANGE_STRING
         else:
-            inlined_form = self.calculate_inlined_form(slot)
+            inlined_form = self.backing_inlined_form(self.calculate_inlined_form(slot))
             field.inline_form = inlined_form
 
             if inlined_form == SlotHandlerBase.FORM_INLINED_COLLECTION_DICT:

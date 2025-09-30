@@ -1,47 +1,40 @@
 import polars as pl
 import panderagen_polars_schema as serialized_schema
 import panderagen_polars_schema_loaded as loaded_schema
-from linkml.generators.panderagen.linkml_polars_transformer import LinkmlPolarsTransformer
+import linkml.generators.panderagen.transforms.new_transforms as nt
 
-
-{% macro render_slot(field) -%}
+{%- macro render_slot2(field) -%}
     {%- if field.inline_form == 'inline_collection_dict' %}
-                self.transform_collection_dict(df, '{{ field.name }}', reference_cls=loaded_schema.{{ field.reference_class }}Struct), # inline_collection_dict conversion
+                nt.CollectionToStructTransformer(struct_schema=loaded_schema.{{ field.reference_class }}Struct).load('{{ field.name }}'),
     {%- elif field.inline_form == 'simple_dict' %}
-                self.transform_simple_dict(df, '{{ field.name }}', id_col='{{ field.inline_id_column_name }}', other_col='{{ field.inline_other_column_name }}', range_schema_dict=loaded_schema.{{ field.reference_class }}Dict, range_schema_struct=loaded_schema.{{ field.reference_class }}Struct, nested_fn={% if field.inline_other_range %}self.load_{{ field.inline_other_range }}{% else %}None{% endif %} ), # simple_dict conversion
-    {% else %}
-                # {{ field.name }}, {{ field.inline_form }}
-    {% endif -%}
-{% endmacro %}
+                nt.DictToStructTransformer(
+                    id_col="{{ field.inline_id_column_name }}",
+                    other_col="{{ field.inline_other_column_name }}",
+                    id_dtype=pl.String, # TODO: need real implementation
+                    other_dtype=loaded_schema.{{ field.inline_other_range }},
+                ).load('{{ field.name }}'),
+    {% else -%}
+    {#- No operation on other forms -#}
+    {%- endif -%}
+{%- endmacro -%}
 
-{% macro render_with_columns(cls) %}
+{%- macro render_with_columns2(cls) %}
             .with_columns(
-{% for field in cls.fields %}{{ render_slot(field) }}{% endfor %}
+{% for field in cls.fields %}{{ render_slot2(field) }}{% endfor %}
             )
-{% endmacro %}
+{% endmacro -%}
 
-class XXXTransformer(LinkmlPolarsTransformer):
-{% for cls in doc.classes %}
-    def load_{{ cls.name }}(self, df: pl.DataFrame) -> pl.DataFrame:
-        return (
-            df
-            .lazy()
-{{ render_with_columns(cls) }}
-            .collect()
-        )
-{% endfor %}
-
-{% for cls in doc.classes %}
-class {{cls.name }}(LinkmlPolarsTransformer):
+{%- for cls in doc.classes %}
+class {{cls.name }}(object): #LinkmlPolarsTransformer):
     _polars_serialized_schema_struct = serialized_schema.{{ cls.name }}Struct
     _polars_serialized_schema_dict = serialized_schema.{{ cls.name }}Dict
-    _polars_loaded_schema_struct = serialized_schema.{{ cls.name }}Struct
-    _polars_loaded_schema_dict = serialized_schema.{{ cls.name }}Dict
+    _polars_loaded_schema_struct = loaded_schema.{{ cls.name }}Struct
+    _polars_loaded_schema_dict = loaded_schema.{{ cls.name }}Dict
 
     def load(self, df: pl.DataFrame) -> pl.DataFrame:
         return (
             df.lazy()
-{{ render_with_columns(cls) }}
+{{ render_with_columns2(cls) }}
             .collect()
         )
-{% endfor %}
+{% endfor -%}

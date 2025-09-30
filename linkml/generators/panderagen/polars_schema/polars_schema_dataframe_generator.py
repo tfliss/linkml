@@ -14,7 +14,6 @@ class PolarsSchemaDataframeGenerator(DataframeGenerator):
     Generates Polars schema classes from a LinkML schema.
     """
 
-    backing_form: str = "serialization"
     TEMPLATE_DIRECTORY = "panderagen_polars_schema"
     TEMPLATE_PATH = "polars_schema.jinja2"
 

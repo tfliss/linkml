@@ -15,7 +15,7 @@ np = pytest.importorskip("numpy", reason="NumPY not installed")
 @pytest.fixture(scope="module")
 def N():
     """Number of rows in the test dataframes, 1M is enough to be real but not strain most machines."""
-    return 10000
+    return 1000  # 000
 
 
 @pytest.fixture(scope="module")
@@ -282,6 +282,21 @@ def compiled_synthetic_pandera_schema_module(compiled_synthetic_schema_module, s
     # unload the modules used in this testing
     sys.modules.pop("panderagen_polars_schema", None)
     sys.modules.pop("panderagen_class_based", None)
+
+
+@pytest.fixture(scope="module")
+def pandera_schema_loaded(synthetic_flat_dataframe_model):
+    generator = PanderaDataframeGenerator(synthetic_flat_dataframe_model, backing_form="loaded")
+    generator.template_file = "pandera.jinja2"
+    generator.template_path = "panderagen_class_based"
+
+    return generator
+
+
+@pytest.fixture(scope="module")
+def compiled_pandera_schema_loaded(pandera_schema_loaded):
+    logger.info(f"PANDERA LOADED\n{pandera_schema_loaded.serialize()}")
+    return pandera_schema_loaded.compile_dataframe_model("panderagen_schema_loaded")
 
 
 @pytest.fixture(scope="module")

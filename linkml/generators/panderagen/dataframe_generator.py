@@ -52,6 +52,9 @@ class DataframeGenerator(OOCodeGenerator, ABC):
     roll_up_slots: bool = False
     """whether to include all slots from parents and mixins explicitly in the generated model."""
 
+    backing_form: str = "serialization"
+    """specific storage format that may differ from specified inlined flags"""
+
     def __post_init__(self):
         super().__post_init__()
         self.class_handler = ClassHandlerBase(self)
