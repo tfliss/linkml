@@ -54,6 +54,34 @@ def generate_polars_schema(schema) -> ModuleType:
     return mod
 
 
+def generate_polars_schema_loaded(schema) -> ModuleType:
+    """The loaded polars schema always uses lists rather than dicts for inlined collections"""
+    schema_yaml = yaml.dump(schema)
+    generator = PolarsSchemaDataframeGenerator(schema=schema_yaml, backing_form="loaded")
+    generator.template_file = "polars_schema.jinja2"
+    generator.template_path = "panderagen_polars_schema"
+    output = generator.serialize()
+    logger.info(f"PolaRS Loaded Schema:\n{output}")
+    mod = generator.compile_dataframe_model("panderagen_polars_schema_loaded")
+
+    return mod
+
+
+def generate_polars_transform(schema) -> ModuleType:
+    """converts between serialized backing form using dicts and loaded using lists"""
+    generate_polars_schema_loaded(schema)  # required for import dependency
+
+    schema_yaml = yaml.dump(schema)
+    generator = PolarsSchemaDataframeGenerator(schema_yaml, backing_form="transform")
+    generator.template_file = "load_transformer.jinja2"
+    generator.template_path = "panderagen_polars_schema"
+    output = generator.serialize()
+    logger.info(f"PolaRS Transform:\n{output}")
+    mod = generator.compile_dataframe_model("panderagen_polars_schema_transform")
+
+    return mod
+
+
 def check_data_pandera(schema, output, target_class, object_to_validate, coerced, expected_behavior, valid):
     apply_skip_list(schema["name"], _PANDERA_SKIP_LIST)
     pl = pytest.importorskip("polars", minversion="1.0", reason="Polars >= 1.0 not installed")
@@ -65,19 +93,25 @@ def check_data_pandera(schema, output, target_class, object_to_validate, coerced
 
     try:
         pl_schema = generate_polars_schema(schema)
+        pl_schema_transform = generate_polars_transform(schema)
         mod = compile_python(output, module_name="panderagen_class_based")
         py_cls = getattr(mod, target_class)
 
         pl_schema_cls = getattr(pl_schema, target_class)
-        dataframe_to_validate = pl.from_dicts([object_to_validate], schema=pl_schema_cls, strict=False)
+        dataframe_serialized_form = pl.from_dicts([object_to_validate], schema=pl_schema_cls, strict=False)
 
-        same = deep_compare_dicts(object_to_validate, dataframe_to_validate.to_dicts()[0])
+        same = deep_compare_dicts(object_to_validate, dataframe_serialized_form.to_dicts()[0])
         if not same and valid:
             assert same, f"PolaRS schema did not match input object for {schema['name']}"
         elif not same and not valid:
             logger.info("PolaRS schema did not load invalid object to validate properly")
 
-        logger.info(dataframe_to_validate)
+        logger.info(dataframe_serialized_form)
+
+        xform_cls = getattr(pl_schema_transform, target_class)
+        xform = xform_cls()
+        dataframe_to_validate = xform.load(dataframe_serialized_form)
+
         py_cls.validate(dataframe_to_validate, lazy=True)
     except Exception as e:
         logger.info(f"Schema Name: {schema['name']}")

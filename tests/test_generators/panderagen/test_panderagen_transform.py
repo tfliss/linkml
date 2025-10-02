@@ -7,12 +7,12 @@ def test_polars_transform(
     compiled_synthetic_schema_module,
     compiled_synthetic_schema_loaded,
     compiled_synthetic_schema_transform,
-    big_synthetic_dataframe,
+    big_synthetic_dataframe_serialized,
 ):
-    logger.info(big_synthetic_dataframe)
+    logger.info(big_synthetic_dataframe_serialized)
 
     xform = compiled_synthetic_schema_transform.PanderaSyntheticTable()
-    loaded = xform.load(big_synthetic_dataframe)
+    loaded = xform.load(big_synthetic_dataframe_serialized)
 
     logger.info(loaded)
 
@@ -22,13 +22,13 @@ def test_polars_transform(
 
 
 def test_validate_transformed_df(
-    compiled_pandera_schema_loaded,
+    compiled_synthetic_pandera_schema_module,
     compiled_synthetic_schema_transform,
-    big_synthetic_dataframe,
+    big_synthetic_dataframe_serialized,
 ):
     xform = compiled_synthetic_schema_transform.PanderaSyntheticTable()
-    loaded = xform.load(big_synthetic_dataframe)
+    loaded = xform.load(big_synthetic_dataframe_serialized)
 
-    validated = compiled_pandera_schema_loaded.PanderaSyntheticTable.validate(loaded)
+    validated = compiled_synthetic_pandera_schema_module.PanderaSyntheticTable.validate(loaded)
 
     assert validated is not None

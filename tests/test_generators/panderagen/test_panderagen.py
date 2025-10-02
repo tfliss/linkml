@@ -64,7 +64,13 @@ def test_pandera_basic_class_based(synthetic_pandera_schema):
         if match:
             classes.append(match.group(1))
 
-    expected_classes = ["AnyType", "ColumnType", "SimpleDictType", "PanderaSyntheticTable"]
+    expected_classes = [
+        "AnyType",
+        "ColumnType",
+        "SimpleDictType",
+        "PanderaSyntheticTableEfficient",
+        "PanderaSyntheticTable",
+    ]
 
     assert sorted(expected_classes) == sorted(classes)
 
@@ -81,12 +87,23 @@ def test_get_metadata(compiled_synthetic_pandera_schema_module):
     logger.info(compiled_synthetic_pandera_schema_module.PanderaSyntheticTable.get_metadata())
 
 
-def test_pandera_compile_basic_class_based(compiled_synthetic_pandera_schema_module, big_synthetic_dataframe):
+def test_pandera_compile_basic_class_based(
+    compiled_synthetic_pandera_schema_module_serialized, big_synthetic_dataframe_serialized
+):
     """
     tests compilation and validation of correct class-based schema
     """
     # raises pandera.errors.SchemaErrors, so no assert needed
-    compiled_synthetic_pandera_schema_module.PanderaSyntheticTable.validate(big_synthetic_dataframe, lazy=True)
+    compiled_synthetic_pandera_schema_module_serialized.PanderaSyntheticTable.validate(
+        big_synthetic_dataframe_serialized, lazy=True
+    )
+
+
+def test_validate_transformed_df(compiled_synthetic_pandera_schema_module, big_synthetic_dataframe):
+    """loaded form schema uses lists instead of inefficient dicts."""
+
+    # raises pandera.errors.SchemaErrors. no assert needed
+    compiled_synthetic_pandera_schema_module.PanderaSyntheticTable.validate(big_synthetic_dataframe)
 
 
 def test_pandera_validation_error_ge(compiled_synthetic_pandera_schema_module, big_synthetic_dataframe):

@@ -2,32 +2,49 @@ import polars as pl
 
 
 class DictToStructTransformer:
-    def __init__(self, id_col="id", other_col="other", id_dtype=pl.String, other_dtype=pl.Int64, nested_tx=lambda x: x):
-        self.id_col = id_col
-        self.other_col = other_col
+    def __init__(
+        self,
+        struct_schema,
+        id_col="id",
+        other_col="other",
+        id_dtype=pl.String,
+        other_dtype=pl.Int64,
+        nested_tx=lambda x: x,
+    ):
+        self.struct_schema = struct_schema
+        self.id_col: str = id_col
+        self.other_col: str = other_col
         self.id_dtype = id_dtype
         self.other_dtype = other_dtype
         self.nested_tx = nested_tx
+        self.polars_schema_keys = set(self.struct_schema.keys())
 
-    @staticmethod
-    def tx_core(sd, id_col="id", other_col="other", nested_tx=lambda x: x):
+    def tx_core(self, linkml_simple_dict):
         """core simple dict to list of dicts logic"""
-        return [{id_col: k, other_col: nested_tx(v)} for k, v in sd.items()]
+        for id_value, range_value in linkml_simple_dict.items():
+            if isinstance(range_value, dict) and (set(range_value.keys()) <= self.polars_schema_keys):
+                yield {
+                    **{k: None for k in self.polars_schema_keys},  # make sure all values present
+                    **self.nested_tx(range_value),  # copy value
+                    self.id_col: id_value,  # make sure optional key is present
+                }
+            else:
+                yield {
+                    **{k: None for k in self.polars_schema_keys},  # make sure all values present
+                    self.id_col: id_value,
+                    self.other_col: range_value,
+                }
 
     # simple dict handling
     def tx(self, sd):
         """simple dict to list of dicts"""
-        return self.tx_core(sd, self.id_col, self.other_col, self.nested_tx)
+        return self.tx_core(sd)
 
     def load(self, source_col):
-        result = pl.col(source_col).map_elements(
-            self.tx, return_dtype=pl.List(pl.Struct({self.id_col: self.id_dtype, self.other_col: self.other_dtype}))
-        )
-        return result
+        return pl.col(source_col).map_elements(self.tx, return_dtype=pl.List(pl.Struct(self.struct_schema)))
 
     def load_df(self, df, source_col):
-        result = df.with_columns(self.load(source_col))
-        return result
+        return df.with_columns(self.load(source_col))
 
 
 class CollectionToStructTransformer:
@@ -39,20 +56,15 @@ class CollectionToStructTransformer:
     @staticmethod
     def tx_core(collection_dict, id_col="id", nested_tx=lambda x: x):
         """core collection to structs logic"""
-        result = []
         for k, v in collection_dict.items():
-            struct_dict = {**nested_tx(v), id_col: k}  # Collection key overwrites nested value
-            result.append(struct_dict)
-        return result
+            yield {**nested_tx(v), id_col: k}  # Collection key overwrites nested value
 
     def tx(self, collection_dict):
         """collection_to_structs"""
         return self.tx_core(collection_dict, self.id_col, self.nested_tx)
 
     def load(self, source_col):
-        result = pl.col(source_col).map_elements(self.tx, return_dtype=pl.List(self.struct_schema))
-        return result
+        return pl.col(source_col).map_elements(self.tx, return_dtype=pl.List(self.struct_schema))
 
     def load_df(self, df, source_col):
-        result = df.with_columns(self.load(source_col))
-        return result
+        return df.with_columns(self.load(source_col))

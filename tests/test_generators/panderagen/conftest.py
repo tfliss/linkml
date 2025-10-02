@@ -8,14 +8,16 @@ from linkml.generators.panderagen.polars_schema.polars_schema_dataframe_generato
 
 logger = logging.getLogger(__file__)
 
+
+# Load optional dependencies using importorskip to avoid pytest collection errors
 pl = pytest.importorskip("polars", minversion="1.0", reason="Polars >= 1.0 not installed")
 np = pytest.importorskip("numpy", reason="NumPY not installed")
 
 
 @pytest.fixture(scope="module")
 def N():
-    """Number of rows in the test dataframes, 1M is enough to be real but not strain most machines."""
-    return 1000  # 000
+    """Number of rows in the test dataframes, 10K is enough to be real but not strain most machines."""
+    return 10000
 
 
 @pytest.fixture(scope="module")
@@ -84,7 +86,7 @@ classes:
   #       inlined: True
   #       inlined_as_list: False
 
-  PanderaSyntheticTable:
+  PanderaSyntheticTableEfficient:
     description: A flat table with a reasonably complete assortment of datatypes.
     attributes:
       identifier_column:
@@ -167,19 +169,25 @@ classes:
         required: true
         inlined: false
         multivalued: false
-      inlined_class_column:
-        description: test column with another class inlined as a struct
-        range: ColumnType
-        required: true
-        inlined: true
-        inlined_as_list: false
-        multivalued: true
       inlined_as_list_column:
         description: test column with another class inlined as a list
         range: ColumnType
         required: true
         inlined: true
         inlined_as_list: true
+        multivalued: true
+
+  PanderaSyntheticTable:
+    description: Includes all efficient types and inefficient dict types
+    mixins:
+    - PanderaSyntheticTableEfficient
+    attributes:
+      inlined_class_column:
+        description: test column with another class inlined as a struct
+        range: ColumnType
+        required: true
+        inlined: true
+        inlined_as_list: false
         multivalued: true
       inlined_simple_dict_column:
         description: test column inlined using simple dict form
@@ -261,7 +269,10 @@ def synthetic_schema_transform(synthetic_flat_dataframe_model):
 
 
 @pytest.fixture(scope="module")
-def compiled_synthetic_schema_transform(synthetic_schema_transform):
+def compiled_synthetic_schema_transform(
+    compiled_synthetic_schema_loaded,  # needed for dependency
+    synthetic_schema_transform,
+):
     logger.info(f"{synthetic_schema_transform.serialize()}")
 
     return synthetic_schema_transform.compile_dataframe_model("panderagen_polars_schema_transform")
@@ -273,7 +284,7 @@ def synthetic_pandera_schema(synthetic_flat_dataframe_model):
 
 
 @pytest.fixture(scope="module")
-def compiled_synthetic_pandera_schema_module(compiled_synthetic_schema_module, synthetic_pandera_schema):
+def compiled_synthetic_pandera_schema_module_serialized(compiled_synthetic_schema_module, synthetic_pandera_schema):
     del compiled_synthetic_schema_module  # suppress warning
 
     logger.info(f"{synthetic_pandera_schema.serialize()}")
@@ -294,7 +305,8 @@ def pandera_schema_loaded(synthetic_flat_dataframe_model):
 
 
 @pytest.fixture(scope="module")
-def compiled_pandera_schema_loaded(pandera_schema_loaded):
+def compiled_synthetic_pandera_schema_module(compiled_synthetic_schema_module, pandera_schema_loaded):
+    """The pandera schema using the loaded backing form"""
     logger.info(f"PANDERA LOADED\n{pandera_schema_loaded.serialize()}")
     return pandera_schema_loaded.compile_dataframe_model("panderagen_schema_loaded")
 
@@ -388,16 +400,17 @@ def invalid_simple_dict_column_expression():
 
 
 @pytest.fixture(scope="module")
-def big_synthetic_dataframe(
+def big_synthetic_dataframe_serialized(
     N,
     column_type_instances,
     valid_inlined_dict_column_expression,
     valid_simple_dict_column_expression,
-    valid_nested_simple_dict_column_expression,
-    valid_double_nested_simple_dict_column_expression,
     compiled_synthetic_schema_module,
 ):
-    """Construct a reasonably sized dataframe that complies with the PanderaSyntheticTable model"""
+    """
+    Construct a reasonably sized dataframe that complies with the PanderaSyntheticTable model.
+    Uses 'serialized' backing form including inefficient dict collections.
+    """
     test_enum = pl.Enum(["ANIMAL", "VEGETABLE", "MINERAL"])
     test_ont_enum = pl.Enum(["fiction", "non fiction"])
 
@@ -449,3 +462,15 @@ def big_synthetic_dataframe(
     logger.info(df)
 
     return df
+
+
+@pytest.fixture(scope="module")
+def big_synthetic_dataframe(
+    big_synthetic_dataframe_serialized,
+    compiled_synthetic_schema_module,  # required for dependency
+    compiled_synthetic_pandera_schema_module,  # required for dependency
+    compiled_synthetic_schema_transform,
+):
+    """Synthetic dataframe with inefficient inline forms converted to lists"""
+    dict_to_list_transform = compiled_synthetic_schema_transform.PanderaSyntheticTable()
+    return dict_to_list_transform.load(big_synthetic_dataframe_serialized)

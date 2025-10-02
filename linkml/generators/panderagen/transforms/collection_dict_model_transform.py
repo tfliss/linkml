@@ -7,6 +7,8 @@ class CollectionDictModelTransform(ModelTransform):
     """This class assists in converting a LinkML 'collection dict' inline column
     into a form that is better for representing in a PolaRS dataframe and
     validating with a Pandera model.
+
+    Note the range can't be a literal type (they don't have ids)
     """
 
     def __init__(self, nested_cls, polars_schema, polars_schema_dict):
@@ -19,6 +21,9 @@ class CollectionDictModelTransform(ModelTransform):
 
         self.id_col = nested_cls.get_id_column_name()
         """The ID column in the sense of a LinkML inline collection dict"""
+
+        self.nested_tx = lambda x: x
+        """No-op may be used in the future to handle nested inlined forms"""
 
     def transform(self, linkml_collection_dict):
         """Converts a collection dict nested column to a list of dicts.
@@ -37,12 +42,8 @@ class CollectionDictModelTransform(ModelTransform):
             A single row entry in a dataframe column (one cell), which itself is a dict.
             The value entries are dicts that get the key added as an id field.
         """
-        arr = []
         for k, v in linkml_collection_dict.items():
-            if k not in v:
-                v[self.id_col] = k
-            arr.append(v)
-        return arr
+            yield {**self.nested_tx(v), self.id_col: k}  # Collection key overwrites nested value
 
     def prepare_series(self, lf: pl.LazyFrame, column_name: str) -> pl.Series:
         """Returns just the collection dict column transformed to an inlined list form
@@ -53,21 +54,24 @@ class CollectionDictModelTransform(ModelTransform):
 
         list_of_structs = []
         for [e] in one_column_df.iter_rows():
-            transformed = self.transform(e)
+            transformed = list(self.transform(e))
             if len(transformed) > 0:
                 list_of_structs.append(transformed)
-
-        if len(list_of_structs) == 0:
-            list_of_structs = None
 
         return pl.Series(column_name, list_of_structs, dtype=self.polars_schema_dict)
 
     def prepare_dataframe(self, data, column_name: str):
         """Returns just the collection dict column transformed to an inlined list form"""
-        # list_of_structs = data.lazyframe.select(pl.col(column_name)).collect().to_dicts().get(column_name)
-
         return pl.DataFrame(self.prepare_series(data.lazyframe, column_name))
 
     def explode_unnest_dataframe(self, df, column_name):
         """Filter, explode and unnest for collection dict."""
-        return df.lazy().filter(pl.col(column_name).list.len() > 0).explode(column_name).unnest(column_name).collect()
+        # fmt: off
+        return (
+            df.lazy()
+            .filter(pl.col(column_name).list.len() > 0)
+            .explode(column_name)
+            .unnest(column_name)
+            .collect()
+        )
+        # fmt: on

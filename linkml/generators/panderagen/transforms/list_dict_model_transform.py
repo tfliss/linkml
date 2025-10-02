@@ -9,7 +9,7 @@ class ListDictModelTransform(ModelTransform):
     validating with a Pandera model.
     """
 
-    def __init__(self, polars_schema):
+    def __init__(self, polars_schema=None):
         self.polars_schema = polars_schema
         """A polars schema representing a list dict column"""
 
@@ -35,32 +35,34 @@ class ListDictModelTransform(ModelTransform):
 
         return unnested_column
 
-    @classmethod
-    def prepare_dataframe(cls, data, column_name, nested_cls):
+    def prepare_dataframe(self, data, column_name, nested_cls):
         """Returns just the list dict column transformed to an inlined list form
 
         note that this method uses collect and iter_rows so is very inefficient
         """
-        polars_schema = nested_cls.to_schema()
+        nested_polars_schema = nested_cls.to_schema()  # TODO: change this to pl.Schema(self.polars_schema)
 
-        list_dict_transformer = cls(polars_schema)
+        nested_list_dict_transformer = ListDictModelTransform(nested_polars_schema)
 
         one_column_df = data.lazyframe.select(pl.col(column_name)).collect()
 
-        list_of_structs = [list_dict_transformer.transform(e) for [e] in one_column_df.iter_rows()]
+        list_of_structs = [nested_list_dict_transformer.transform(e) for [e] in one_column_df.iter_rows()]
 
-        return pl.DataFrame(pl.Series(list_of_structs).alias(column_name))
+        schema = pl.Schema({column_name: pl.List(pl.Struct(self.polars_schema))})
+
+        if len(list_of_structs) == 0:
+            return schema.to_frame()
+
+        return pl.DataFrame({column_name: list_of_structs}, schema=schema)
 
     def explode_unnest_dataframe(self, df, column_name, data=None):
         """Filter, explode and unnest for list dict with struct fallback."""
-        try:
-            return (
-                df.lazy().filter(pl.col(column_name).list.len() > 0).explode(column_name).unnest(column_name).collect()
-            )
-        except (pl.exceptions.PanicException, Exception):
-            if data:
-                from .nested_struct_model_transform import NestedStructModelTransform
-
-                nested_transform = NestedStructModelTransform(self.polars_schema)
-                return nested_transform.explode_unnest_dataframe(data.lazyframe, column_name)
-            raise
+        # fmt: off
+        return (
+            df.lazy()
+            .filter(pl.col(column_name).list.len() > 0)
+            .explode(column_name)
+            .unnest(column_name)
+            .collect()
+        )
+        # fmt: on

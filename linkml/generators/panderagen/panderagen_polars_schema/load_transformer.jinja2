@@ -5,9 +5,12 @@ import linkml.generators.panderagen.transforms.new_transforms as nt
 
 {%- macro render_slot2(field) -%}
     {%- if field.inline_form == 'inline_collection_dict' %}
-                nt.CollectionToStructTransformer(struct_schema=loaded_schema.{{ field.reference_class }}Struct).load('{{ field.name }}'),
+                nt.CollectionToStructTransformer(
+                    struct_schema=loaded_schema.{{ field.reference_class }}Struct
+                ).load('{{ field.name }}'),
     {%- elif field.inline_form == 'simple_dict' %}
                 nt.DictToStructTransformer(
+                    struct_schema=loaded_schema.{{ field.reference_class }}Dict,
                     id_col="{{ field.inline_id_column_name }}",
                     other_col="{{ field.inline_other_column_name }}",
                     id_dtype=pl.String, # TODO: need real implementation

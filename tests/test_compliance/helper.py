@@ -102,7 +102,7 @@ GENERATORS: dict[FRAMEWORK, Union[type[Generator], tuple[type[Generator], dict[s
         generators.SQLAlchemyGenerator,
         {"template": sqlalchemygen.TemplateEnum.DECLARATIVE},
     ),
-    PANDERA_POLARS_CLASS: generators.PanderaDataframeGenerator,
+    PANDERA_POLARS_CLASS: (generators.PanderaDataframeGenerator, {"backing_form": "loaded"}),
     DATAFRAME_POLARS_SCHEMA: generators.PolarsSchemaDataframeGenerator,
     SQL_DDL_SQLITE: (generators.SQLTableGenerator, {"dialect": "sqlite"}),
     SQL_DDL_POSTGRES: (generators.SQLTableGenerator, {"dialect": "postgresql"}),
@@ -816,7 +816,7 @@ def check_data(
 
         elif isinstance(gen, JsonSchemaGenerator):
             plugins = [JsonschemaValidationPlugin(closed=True, include_range_class_descendants=False)]
-        elif isinstance(gen, GENERATORS[PANDERA_POLARS_CLASS]):
+        elif isinstance(gen, GENERATORS[PANDERA_POLARS_CLASS][0]):
             check_data_pandera(schema, output, target_class, object_to_validate, coerced, expected_behavior, valid)
         elif isinstance(gen, GENERATORS[DATAFRAME_POLARS_SCHEMA]):
             check_data_polars_schema(
