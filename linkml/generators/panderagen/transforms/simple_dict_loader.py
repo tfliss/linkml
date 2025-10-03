@@ -40,8 +40,12 @@ class SimpleDictLoader:
         """simple dict to list of dicts"""
         return self.tx_core(sd)
 
+    def tx_batch(self, series):
+        """Process entire series of simple dicts"""
+        return pl.Series([list(self.tx(simple_dict)) for simple_dict in series])
+
     def load(self, source_col):
-        return pl.col(source_col).map_elements(self.tx, return_dtype=pl.List(pl.Struct(self.struct_schema)))
+        return pl.col(source_col).map_batches(self.tx_batch, return_dtype=pl.List(pl.Struct(self.struct_schema)))
 
     def load_df(self, df, source_col):
         return df.with_columns(self.load(source_col))

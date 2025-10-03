@@ -17,8 +17,12 @@ class CollectionDictLoader:
         """collection_to_structs"""
         return self.tx_core(collection_dict, self.id_col, self.nested_tx)
 
+    def tx_batch(self, series):
+        """Process entire series of collection dicts"""
+        return pl.Series([list(self.tx(collection_dict)) for collection_dict in series])
+
     def load(self, source_col):
-        return pl.col(source_col).map_elements(self.tx, return_dtype=pl.List(self.struct_schema))
+        return pl.col(source_col).map_batches(self.tx_batch, return_dtype=pl.List(self.struct_schema))
 
     def load_df(self, df, source_col):
         return df.with_columns(self.load(source_col))
