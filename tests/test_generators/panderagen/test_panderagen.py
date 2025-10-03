@@ -205,6 +205,36 @@ def test_inlined_object_nested_range_type_error(
     assert error_details["error"] == "SchemaError(\"expected column 'x' to have type Int64, got Float64\")"
 
 
+def test_inlined_object_nested_value_error(N, compiled_synthetic_pandera_schema_module, big_synthetic_dataframe):
+    df = big_synthetic_dataframe.with_columns(
+        pl.Series(
+            "inlined_as_object_column",
+            [
+                {
+                    "id": "thing_one",
+                    "x": 11111,
+                    "y": 2222,
+                },
+            ]
+            * N,
+            dtype=pl.Struct(
+                [
+                    pl.Field("id", pl.Utf8),
+                    pl.Field("x", pl.Int64),
+                    pl.Field("y", pl.Int64),
+                ]
+            ),
+        )
+    )
+
+    # validating a lazyframe shouldn't find issues that require a collect
+    compiled_synthetic_pandera_schema_module.PanderaSyntheticTable.validate(df.lazy(), lazy=True)
+
+    # validating a dataframe also calls collect on nested columns
+    with pytest.raises(pandera.errors.SchemaErrors):
+        compiled_synthetic_pandera_schema_module.PanderaSyntheticTable.validate(df, lazy=True)
+
+
 @pytest.mark.xfail(reason="floats are getting coerced to ints")
 def test_inlined_simple_dict_nested_range_type_error(
     N, compiled_synthetic_pandera_schema_module, big_synthetic_dataframe, invalid_simple_dict_column_expression

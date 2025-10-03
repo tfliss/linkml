@@ -55,7 +55,11 @@ class LinkmlPanderaValidator:
             )
 
         nested_lf = one_column_lf.explode(column_name).unnest(column_name)
-        nested_cls.validate(nested_lf)
+
+        if isinstance(data.lazyframe, pl.LazyFrame):
+            nested_cls.validate(nested_lf)
+        else:
+            nested_cls.validate(nested_lf.collect())
 
         return data.lazyframe.select(pl.lit(True))
 
@@ -80,7 +84,11 @@ class LinkmlPanderaValidator:
             )
 
         nested_lf = one_column_lf.explode(column_name).unnest(column_name)
-        nested_cls.validate(nested_lf)
+
+        if isinstance(data.lazyframe, pl.LazyFrame):
+            nested_cls.validate(nested_lf)
+        else:
+            nested_cls.validate(nested_lf.collect())
 
         return data.lazyframe.select(pl.lit(True))
 
@@ -109,7 +117,10 @@ class LinkmlPanderaValidator:
             .unnest(column_name)
         )
         # fmt: on
-        nested_cls.validate(nested_lf)
+        if isinstance(data.lazyframe, pl.LazyFrame):
+            nested_cls.validate(nested_lf)
+        else:
+            nested_cls.validate(nested_lf.collect())
 
         return data.lazyframe.select(pl.lit(True))
 
@@ -128,6 +139,9 @@ class LinkmlPanderaValidator:
             raise SchemaError(polars_schema, lf, f"Schema mismatch for {column_name}: {actual} != {expected}")
 
         nested_lf = lf.select(column_name).unnest(column_name)
-        nested_cls.validate(nested_lf)
+        if isinstance(data.lazyframe, pl.LazyFrame):
+            nested_cls.validate(nested_lf)
+        else:
+            nested_cls.validate(nested_lf.collect())
 
         return data.lazyframe.select(pl.lit(True))

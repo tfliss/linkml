@@ -48,6 +48,8 @@ classes:
       x:
         range: integer
         required: true
+        minimum_value: 0
+        maximum_value: 10000
       y:
         range: integer
         required: true
