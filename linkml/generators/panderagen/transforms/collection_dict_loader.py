@@ -19,7 +19,9 @@ class CollectionDictLoader:
 
     def tx_batch(self, series):
         """Process entire series of collection dicts"""
-        return pl.Series([list(self.tx(collection_dict)) for collection_dict in series])
+        return pl.Series(
+            [list(self.tx(collection_dict)) for collection_dict in series], dtype=pl.List(self.struct_schema)
+        )
 
     def load(self, source_col):
         return pl.col(source_col).map_batches(self.tx_batch, return_dtype=pl.List(self.struct_schema))

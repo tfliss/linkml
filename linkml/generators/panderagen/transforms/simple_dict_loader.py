@@ -18,22 +18,21 @@ class SimpleDictLoader:
         self.other_dtype = other_dtype
         self.nested_tx = nested_tx
         self.polars_schema_keys = set(self.struct_schema.keys())
+        self.ordered_schema_keys = list(self.struct_schema.keys())
 
     def tx_core(self, linkml_simple_dict):
         """core simple dict to list of dicts logic"""
         for id_value, range_value in linkml_simple_dict.items():
             if isinstance(range_value, dict) and (set(range_value.keys()) <= self.polars_schema_keys):
-                yield {
-                    **{k: None for k in self.polars_schema_keys},  # make sure all values present
-                    **self.nested_tx(range_value),  # copy value
-                    self.id_col: id_value,  # make sure optional key is present
-                }
+                base_dict = {k: None for k in self.ordered_schema_keys}
+                base_dict.update(self.nested_tx(range_value))
+                base_dict[self.id_col] = id_value
+                yield base_dict
             else:
-                yield {
-                    **{k: None for k in self.polars_schema_keys},  # make sure all values present
-                    self.id_col: id_value,
-                    self.other_col: range_value,
-                }
+                base_dict = {k: None for k in self.ordered_schema_keys}
+                base_dict[self.id_col] = id_value
+                base_dict[self.other_col] = range_value
+                yield base_dict
 
     # simple dict handling
     def tx(self, sd):
@@ -42,7 +41,11 @@ class SimpleDictLoader:
 
     def tx_batch(self, series):
         """Process entire series of simple dicts"""
-        return pl.Series([list(self.tx(simple_dict)) for simple_dict in series])
+        result = []
+        for simple_dict in series:
+            transformed = list(self.tx(simple_dict))
+            result.append(transformed)
+        return pl.Series(result, dtype=pl.List(pl.Struct(self.struct_schema)))
 
     def load(self, source_col):
         return pl.col(source_col).map_batches(self.tx_batch, return_dtype=pl.List(pl.Struct(self.struct_schema)))
