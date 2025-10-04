@@ -59,7 +59,7 @@ class LinkmlPanderaValidator:
         if isinstance(data.lazyframe, pl.LazyFrame):
             nested_cls.validate(nested_lf)
         else:
-            nested_cls.validate(nested_lf.collect())
+            nested_cls.validate(nested_lf.collect(engine="streaming"))
 
         return data.lazyframe.select(pl.lit(True))
 
@@ -88,7 +88,7 @@ class LinkmlPanderaValidator:
         if isinstance(data.lazyframe, pl.LazyFrame):
             nested_cls.validate(nested_lf)
         else:
-            nested_cls.validate(nested_lf.collect())
+            nested_cls.validate(nested_lf.collect(engine="streaming"))
 
         return data.lazyframe.select(pl.lit(True))
 
@@ -120,7 +120,7 @@ class LinkmlPanderaValidator:
         if isinstance(data.lazyframe, pl.LazyFrame):
             nested_cls.validate(nested_lf)
         else:
-            nested_cls.validate(nested_lf.collect())
+            nested_cls.validate(nested_lf.collect(engine="streaming"))
 
         return data.lazyframe.select(pl.lit(True))
 
@@ -142,6 +142,6 @@ class LinkmlPanderaValidator:
         if isinstance(data.lazyframe, pl.LazyFrame):
             nested_cls.validate(nested_lf)
         else:
-            nested_cls.validate(nested_lf.collect())
+            nested_cls.validate(nested_lf.collect(engine="streaming"))
 
         return data.lazyframe.select(pl.lit(True))
