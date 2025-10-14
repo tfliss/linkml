@@ -16,6 +16,7 @@ from .polars_schema.polars_schema_dataframe_generator import PolarsSchemaDatafra
 # Allowed template directories
 ALLOWED_TEMPLATE_DIRECTORIES = ["panderagen_class_based", "panderagen_polars_schema", "panderagen_arrow_schema"]
 
+
 # Available generator classes
 GENERATOR_CLASSES = {
     "PanderaDataframeGenerator": {
@@ -66,7 +67,7 @@ class DataframeGeneratorCli:
             logger.warning(f"Unable to read linkml_pandera_validator module: {e}")
             return None
 
-    def serialize(self, rendered_module: Optional[OODocument] = None) -> str:
+    def serialize(self, directory: Optional[str] = None, rendered_module: Optional[OODocument] = None) -> str:
         """
         Serialize the dataframe schema to a Python module as a string
         """
@@ -76,10 +77,71 @@ class DataframeGeneratorCli:
         if self.template_file is not None:
             self.generator.template_file = self.template_file
 
-        return self.generator.serialize(rendered_module=rendered_module)
+        code = self.generator.serialize(rendered_module=rendered_module)
+
+        return code
 
 
-# @shared_arguments(PanderaDataframeGenerator)
+PANDERA_GROUP = [
+    (
+        "panderagen_polars_schema",
+        PolarsSchemaDataframeGenerator,
+        "panderagen_polars_schema",
+        "polars_schema.jinja2",
+        "serialization",
+    ),
+    (
+        "panderagen_polars_schema_loaded",
+        PolarsSchemaDataframeGenerator,
+        "panderagen_polars_schema",
+        "polars_schema.jinja2",
+        "loaded",
+    ),
+    (
+        "panderagen_polars_schema_transform",
+        PolarsSchemaDataframeGenerator,
+        "panderagen_polars_schema",
+        "load_transformer.jinja2",
+        "transform",
+    ),
+    ("panderagen_class_based", PanderaDataframeGenerator, "panderagen_class_based", "pandera.jinja2", "serialization"),
+    ("panderagen_schema_loaded", PanderaDataframeGenerator, "panderagen_class_based", "pandera.jinja2", "loaded"),
+]
+POLARS_GROUP = [
+    (
+        "panderagen_polars_schema",
+        PolarsSchemaDataframeGenerator,
+        "panderagen_polars_schema",
+        "polars_schema.jinja2",
+        "serialization",
+    ),
+    (
+        "panderagen_polars_schema_loaded",
+        PolarsSchemaDataframeGenerator,
+        "panderagen_polars_schema",
+        "polars_schema.jinja2",
+        "loaded",
+    ),
+    (
+        "panderagen_polars_schema_transform",
+        PolarsSchemaDataframeGenerator,
+        "panderagen_polars_schema",
+        "load_transformer.jinja2",
+        "transform",
+    ),
+]
+DATAFRAME_GROUP = [
+    (
+        "panderagen_polars_schema_loaded",
+        PolarsSchemaDataframeGenerator,
+        "panderagen_polars_schema",
+        "polars_schema.jinja2",
+        "loaded",
+    ),
+    ("panderagen_schema_loaded", PanderaDataframeGenerator, "panderagen_class_based", "pandera.jinja2", "loaded"),
+]
+
+
 @click.option("--package", help="Package name where relevant for generated class files")
 @click.option("--template-path", help="Optional jinja2 template directory within module")
 @click.option("--template-file", help="Optional jinja2 template to use for class generation")
@@ -118,13 +180,17 @@ def cli(
         **args,
     )
 
-    cli_wrapper = DataframeGeneratorCli(
-        generator=generator,
-        template_path=template_path or DataframeGeneratorCli.DEFAULT_TEMPLATE_PATH,
-        template_file=template_file,
-    )
-
-    print(cli_wrapper.serialize())
+    if package is not None:
+        DataframeGenerator.compile_package_from_specification(
+            PANDERA_GROUP, package, yamlfile, directory=package, **args
+        )
+    else:
+        cli_wrapper = DataframeGeneratorCli(
+            generator=generator,
+            template_path=template_path or DataframeGeneratorCli.DEFAULT_TEMPLATE_PATH,
+            template_file=template_file,
+        )
+        print(cli_wrapper.serialize())
 
 
 if __name__ == "__main__":

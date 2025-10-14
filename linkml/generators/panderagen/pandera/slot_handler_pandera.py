@@ -26,7 +26,7 @@ class SlotHandlerPandera(SlotHandlerBase):
             SlotHandlerBase.FORM_INLINED_COLLECTION_DICT: SlotHandlerBase.FORM_INLINED_LIST_DICT,
         }
 
-        if self.generator.backing_form in "serialization":
+        if self.generator.backing_form in ["serialization"]:
             return inlined_form
         elif self.generator.backing_form in ["loaded", "transform"]:
             return loaded_form.get(inlined_form, inlined_form)

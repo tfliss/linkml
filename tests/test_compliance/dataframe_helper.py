@@ -1,13 +1,9 @@
 import logging
-import sys
-from types import ModuleType
 
 import pytest
 import yaml
-from linkml_runtime.utils.compile_python import compile_python
 
 from linkml.generators.panderagen.dict_compare import deep_compare_dicts
-from linkml.generators.panderagen.polars_schema.polars_schema_dataframe_generator import PolarsSchemaDataframeGenerator
 
 _MIN_POLARS_VERSION = "1.29.0"
 
@@ -43,48 +39,11 @@ _POLARS_SCHEMA_SKIP_LIST = [
 _PANDERA_SKIP_LIST = _POLARS_SCHEMA_SKIP_LIST
 
 
-def generate_polars_schema(schema) -> ModuleType:
-    schema_yaml = yaml.dump(schema)
-    generator = PolarsSchemaDataframeGenerator(schema=schema_yaml, mergeimports=True)
-    output = generator.serialize()
-    logger.info(f"PolaRS Schema:\n{output}")
-    mod = generator.compile_dataframe_model
-    mod = compile_python(output, module_name="panderagen_polars_schema")
-
-    return mod
-
-
-def generate_polars_schema_loaded(schema) -> ModuleType:
-    """The loaded polars schema always uses lists rather than dicts for inlined collections"""
-    schema_yaml = yaml.dump(schema)
-    generator = PolarsSchemaDataframeGenerator(schema=schema_yaml, backing_form="loaded")
-    generator.template_file = "polars_schema.jinja2"
-    generator.template_path = "panderagen_polars_schema"
-    output = generator.serialize()
-    logger.info(f"PolaRS Loaded Schema:\n{output}")
-    mod = generator.compile_dataframe_model("panderagen_polars_schema_loaded")
-
-    return mod
-
-
-def generate_polars_transform(schema) -> ModuleType:
-    """converts between serialized backing form using dicts and loaded using lists"""
-    generate_polars_schema_loaded(schema)  # required for import dependency
-
-    schema_yaml = yaml.dump(schema)
-    generator = PolarsSchemaDataframeGenerator(schema_yaml, backing_form="transform")
-    generator.template_file = "load_transformer.jinja2"
-    generator.template_path = "panderagen_polars_schema"
-    output = generator.serialize()
-    logger.info(f"PolaRS Transform:\n{output}")
-    mod = generator.compile_dataframe_model("panderagen_polars_schema_transform")
-
-    return mod
-
-
 def check_data_pandera(schema, output, target_class, object_to_validate, coerced, expected_behavior, valid):
     apply_skip_list(schema["name"], _PANDERA_SKIP_LIST)
     pl = pytest.importorskip("polars", minversion="1.0", reason="Polars >= 1.0 not installed")
+    from linkml.generators.panderagen.dataframe_generator import DataframeGenerator
+    from linkml.generators.panderagen.panderagen import PANDERA_GROUP
 
     logger.info(
         f"Validating {target_class} against {object_to_validate} / {coerced} / {expected_behavior} / "
@@ -92,12 +51,15 @@ def check_data_pandera(schema, output, target_class, object_to_validate, coerced
     )
 
     try:
-        pl_schema = generate_polars_schema(schema)
-        pl_schema_transform = generate_polars_transform(schema)
-        mod = compile_python(output, module_name="panderagen_class_based")
-        py_cls = getattr(mod, target_class)
+        schema_yaml = yaml.dump(schema)
 
-        pl_schema_cls = getattr(pl_schema, target_class)
+        compiled_modules = DataframeGenerator.compile_package_from_specification(
+            PANDERA_GROUP, "test_pandera_package", schema_yaml
+        )
+
+        py_cls = getattr(compiled_modules["panderagen_schema_loaded"], target_class)
+        pl_schema_cls = getattr(compiled_modules["panderagen_polars_schema"], target_class)
+
         dataframe_serialized_form = pl.from_dicts([object_to_validate], schema=pl_schema_cls, strict=False)
 
         same = deep_compare_dicts(object_to_validate, dataframe_serialized_form.to_dicts()[0])
@@ -108,7 +70,7 @@ def check_data_pandera(schema, output, target_class, object_to_validate, coerced
 
         logger.info(dataframe_serialized_form)
 
-        xform_cls = getattr(pl_schema_transform, target_class)
+        xform_cls = getattr(compiled_modules["panderagen_polars_schema_transform"], target_class)
         xform = xform_cls()
         dataframe_to_validate = xform.load(dataframe_serialized_form)
 
@@ -119,8 +81,7 @@ def check_data_pandera(schema, output, target_class, object_to_validate, coerced
             logger.info(output)
             raise e
     finally:
-        sys.modules.pop("panderagen_polars_schema", None)
-        sys.modules.pop("panderagen_class_based", None)
+        DataframeGenerator.cleanup_package("test_pandera_package")
 
 
 def check_data_polars_schema(schema, output, target_class, object_to_validate, coerced, expected_behavior, valid):
@@ -129,6 +90,8 @@ def check_data_polars_schema(schema, output, target_class, object_to_validate, c
     """
     apply_skip_list(schema["name"], _POLARS_SCHEMA_SKIP_LIST)
     pl = pytest.importorskip("polars", minversion=_MIN_POLARS_VERSION, reason="Polars >= 1.0 not installed")
+    from linkml.generators.panderagen.dataframe_generator import DataframeGenerator
+    from linkml.generators.panderagen.panderagen import POLARS_GROUP
 
     try:
         logger.info(
@@ -140,8 +103,13 @@ def check_data_polars_schema(schema, output, target_class, object_to_validate, c
         logger.info(f"Valid: {valid}")
         logger.info(f"Expected: {object_to_validate}")
 
-        mod = compile_python(output)  # , module_name="test_polars_schema")
-        py_cls = getattr(mod, target_class)
+        schema_yaml = yaml.dump(schema)
+
+        compiled_modules = DataframeGenerator.compile_package_from_specification(
+            POLARS_GROUP, "test_polars_package", schema_yaml
+        )
+
+        py_cls = getattr(compiled_modules["panderagen_polars_schema"], target_class)
 
         dataframe_to_validate = pl.from_dicts([object_to_validate], schema=py_cls)
 
@@ -159,3 +127,5 @@ def check_data_polars_schema(schema, output, target_class, object_to_validate, c
         logger.info(f"Schema Name: {schema['name']}")
         if valid:
             raise e
+    finally:
+        DataframeGenerator.cleanup_package("test_polars_package")

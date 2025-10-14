@@ -1,6 +1,6 @@
 import polars as pl
-import panderagen_polars_schema as serialized_schema
-import panderagen_polars_schema_loaded as loaded_schema
+from . import panderagen_polars_schema as serialized_schema
+from . import panderagen_polars_schema_loaded as loaded_schema
 from linkml.generators.panderagen.transforms import CollectionDictLoader, SimpleDictLoader
 
 {%- macro render_slot(field) -%}

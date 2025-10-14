@@ -49,7 +49,7 @@ MODEL_COLUMNS = [
 
 def test_pandera_basic_class_based(synthetic_pandera_schema):
     """
-    Test generation of Pandera for classed-based mode
+    Test generation of Pandera for class-based mode
 
     This test will check the generated python, but does not include a compilation step
     """
@@ -68,6 +68,7 @@ def test_pandera_basic_class_based(synthetic_pandera_schema):
         "AnyType",
         "ColumnType",
         "SimpleDictType",
+        "PanderaSyntheticTableFlat",
         "PanderaSyntheticTableEfficient",
         "PanderaSyntheticTable",
     ]
@@ -310,6 +311,21 @@ def test_cli_simple(cli_runner, test_inputs_dir, target_class, schema):
 
     assert result.exit_code == 0
     assert f"class {target_class}(" in result.output
+
+
+def test_cli_package(cli_runner, test_inputs_dir, tmp_path):
+    schema_path = str(test_inputs_dir / "organization.yaml")
+    package_dir = str(tmp_path / "test_package")
+
+    result = cli_runner.invoke(cli, ["--package", package_dir, schema_path])
+
+    assert result.exit_code == 0
+    assert (tmp_path / "test_package").exists()
+    assert (tmp_path / "test_package" / "panderagen_polars_schema.py").exists()
+    assert (tmp_path / "test_package" / "panderagen_polars_schema_loaded.py").exists()
+    assert (tmp_path / "test_package" / "panderagen_polars_schema_transform.py").exists()
+    assert (tmp_path / "test_package" / "panderagen_class_based.py").exists()
+    assert (tmp_path / "test_package" / "panderagen_schema_loaded.py").exists()
 
 
 @pytest.mark.parametrize("target_class,schema", [("Organization", "organization")])

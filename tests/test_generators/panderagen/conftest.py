@@ -1,17 +1,19 @@
 import logging
-import sys
+from pathlib import PurePosixPath
 
 import pytest
-
-from linkml.generators.panderagen import PanderaDataframeGenerator
-from linkml.generators.panderagen.polars_schema.polars_schema_dataframe_generator import PolarsSchemaDataframeGenerator
-
-logger = logging.getLogger(__file__)
-
 
 # Load optional dependencies using importorskip to avoid pytest collection errors
 pl = pytest.importorskip("polars", minversion="1.0", reason="Polars >= 1.0 not installed")
 np = pytest.importorskip("numpy", reason="NumPY not installed")
+
+
+# These depend on PolaRS and Numpy so need to be after importerskip
+from linkml.generators.panderagen import PanderaDataframeGenerator  # noqa: E402
+from linkml.generators.panderagen.dataframe_generator import DataframeGenerator  # noqa: E402
+from linkml.generators.panderagen.panderagen import PANDERA_GROUP  # noqa: E402
+
+logger = logging.getLogger(__file__)
 
 
 @pytest.fixture(scope="module")
@@ -21,263 +23,40 @@ def N():
 
 
 @pytest.fixture(scope="module")
-def synthetic_flat_dataframe_model():
-    return """\
-id: https://w3id.org/linkml/examples/pandera_constraints
-name: test_pandera_constraints
-prefixes:
-  linkml: https://w3id.org/linkml/
-  ex: https://w3id.org/linkml/examples/pandera_constraints/
-imports:
-  - linkml:types
-default_range: string
-default_prefix: ex
-
-classes:
-
-  AnyType:
-    description: the magic class_uri makes this map to linkml Any or polars Object
-    class_uri: linkml:Any
-
-  ColumnType:
-    description: Nested in a column
-    attributes:
-      id:
-        identifier: true
-        range: string
-      x:
-        range: integer
-        required: true
-        minimum_value: 0
-        maximum_value: 10000
-      y:
-        range: integer
-        required: true
-
-  SimpleDictType:
-    description: Nested as a simple dict
-    attributes:
-      id:
-        identifier: True
-        range: string
-      x:
-        range: integer
-        required: true
-
-  # NestedSimpleDictType:
-  #   description: A list of inlined objects within a simple dict
-  #   attributes:
-  #     id:
-  #       identifier: True
-  #       range: string
-  #     nested_list:
-  #       range: ColumnType
-  #       multivalued: True
-  #       inlined: True
-  #       inlined_as_list: False
-
-  # DoubleNestedSimpleDictType:
-  #   description: A list of inlined objects within a simple dict
-  #   attributes:
-  #     id:
-  #       identifier: True
-  #       range: string
-  #     nested_simple_dict_list:
-  #       range: NestedSimpleDictType
-  #       multivalued: True
-  #       inlined: True
-  #       inlined_as_list: False
-
-  PanderaSyntheticTableEfficient:
-    description: A flat table with a reasonably complete assortment of datatypes.
-    attributes:
-      identifier_column:
-        description: identifier
-        identifier: true
-        range: integer
-        required: true
-      bool_column:
-        description: test boolean column
-        range: boolean
-        required: true
-        #ifabsent: true
-      integer_column:
-        description: test integer column with min/max values
-        range: integer
-        required: true
-        minimum_value: 0
-        maximum_value: 999
-        #ifabsent: int(5)
-      float_column:
-        description: test float column
-        range: float
-        required: true
-        #ifabsent: float(2.3)
-      string_column:
-        description: test string column
-        range: string
-        required: true
-        pattern: "^(this)|(that)|(whatever)$"
-        #ifabsent: string("whatever")
-      date_column:
-        description: test date column
-        range: date
-        required: true
-        #ifabsent: date("2020-01-31")
-      datetime_column:
-        description: test datetime column
-        range: datetime
-        required: true
-        #ifabsent: datetime("2020-01-31 03:23:57")
-      enum_column:
-        description: test enum column
-        range: SyntheticEnum
-        required: true
-      ontology_enum_column:
-        description: test enum column with ontology values
-        range: SyntheticEnumOnt
-        required: true
-        #ifabsent: SyntheticEnumOnt(ANIMAL)
-      multivalued_column:
-        description: one-to-many form
-        range: integer
-        required: true
-        multivalued: true
-        inlined_as_list: true
-      # multivalued_one_many_column:
-      #   description: list form
-      #   range: integer
-      #   required: true
-      #   multivalued: true
-      any_type_column:
-        description: needs to have type object
-        range: AnyType
-        required: true
-      cardinality_column:
-        description: check cardinality
-        range: integer
-        required: true
-        minimum_cardinality: 1
-        maximum_cardinality: 1
-      inlined_as_object_column:
-        description: test column that is a directly nested single object (no dictionary collection)
-        range: ColumnType
-        required: true
-        inlined: true
-        multivalued: false
-      foreign_key_object_column:
-        description: test column that is an association to another table
-        range: ColumnType
-        required: true
-        inlined: false
-        multivalued: false
-      inlined_as_list_column:
-        description: test column with another class inlined as a list
-        range: ColumnType
-        required: true
-        inlined: true
-        inlined_as_list: true
-        multivalued: true
-
-  PanderaSyntheticTable:
-    description: Includes all efficient types and inefficient dict types
-    mixins:
-    - PanderaSyntheticTableEfficient
-    attributes:
-      inlined_class_column:
-        description: test column with another class inlined as a struct
-        range: ColumnType
-        required: true
-        inlined: true
-        inlined_as_list: false
-        multivalued: true
-      inlined_simple_dict_column:
-        description: test column inlined using simple dict form
-        range: SimpleDictType
-        multivalued: true
-        inlined: true
-        inlined_as_list: false
-        required: true
-      # inlined_nested_simple_dict_column:
-      #   description: test column inlined using simple dict form and list struct other
-      #   range: NestedSimpleDictType
-      #   multivalued: true
-      #   inlined: true
-      #   inlined_as_list: false
-      #   required: true
-      # double_nested_simple_dict_column:
-      #   description: test column inlined using simple dict form and list struct other
-      #   range: DoubleNestedSimpleDictType
-      #   multivalued: true
-      #   inlined: true
-      #   inlined_as_list: false
-      #   required: true
-
-enums:
-  SyntheticEnum:
-    description: simple enum for tests
-    permissible_values:
-      ANIMAL:
-      VEGETABLE:
-      MINERAL:
-
-  SyntheticEnumOnt:
-    description: ontology enum for tests
-    permissible_values:
-      fiction: ex:000001
-      non fiction: ex:000002
-"""
+def synthetic_model_path():
+    return PurePosixPath(__file__).parent / "input" / "synthetic_model.yaml"
 
 
 @pytest.fixture(scope="module")
-def synthetic_schema(synthetic_flat_dataframe_model):
-    generator = PolarsSchemaDataframeGenerator(synthetic_flat_dataframe_model, backing_form="serialized")
-    generator.template_file = "polars_schema.jinja2"
-    generator.template_path = "panderagen_polars_schema"
-
-    return generator
+def synthetic_flat_dataframe_model(synthetic_model_path):
+    with open(synthetic_model_path) as f:
+        return f.read()
 
 
 @pytest.fixture(scope="module")
-def compiled_synthetic_schema_module(synthetic_schema):
-    logger.info(f"{synthetic_schema.serialize()}")
+def compiled_modules(synthetic_flat_dataframe_model):
+    compiled_modules = DataframeGenerator.compile_package_from_specification(
+        PANDERA_GROUP, "test_package", synthetic_flat_dataframe_model
+    )
 
-    return synthetic_schema.compile_dataframe_model("panderagen_polars_schema")
+    yield compiled_modules
 
-
-@pytest.fixture(scope="module")
-def synthetic_schema_loaded(synthetic_flat_dataframe_model):
-    generator = PolarsSchemaDataframeGenerator(synthetic_flat_dataframe_model, backing_form="loaded")
-    generator.template_file = "polars_schema.jinja2"
-    generator.template_path = "panderagen_polars_schema"
-
-    return generator
+    DataframeGenerator.cleanup_package("test_package")
 
 
 @pytest.fixture(scope="module")
-def compiled_synthetic_schema_loaded(synthetic_schema_loaded):
-    logger.info(f"SYNTHETIC SCHEMA LOADED\n{synthetic_schema_loaded.serialize()}")
-
-    return synthetic_schema_loaded.compile_dataframe_model("panderagen_polars_schema_loaded")
+def compiled_synthetic_schema_module(compiled_modules):
+    return compiled_modules["panderagen_polars_schema"]
 
 
 @pytest.fixture(scope="module")
-def synthetic_schema_transform(synthetic_flat_dataframe_model):
-    generator = PolarsSchemaDataframeGenerator(synthetic_flat_dataframe_model, backing_form="transform")
-    generator.template_file = "load_transformer.jinja2"
-    generator.template_path = "panderagen_polars_schema"
-
-    return generator
+def compiled_synthetic_schema_loaded(compiled_modules):
+    return compiled_modules["panderagen_polars_schema_loaded"]
 
 
 @pytest.fixture(scope="module")
-def compiled_synthetic_schema_transform(
-    compiled_synthetic_schema_loaded,  # needed for dependency
-    synthetic_schema_transform,
-):
-    logger.info(f"{synthetic_schema_transform.serialize()}")
-
-    return synthetic_schema_transform.compile_dataframe_model("panderagen_polars_schema_transform")
+def compiled_synthetic_schema_transform(compiled_modules):
+    return compiled_modules["panderagen_polars_schema_transform"]
 
 
 @pytest.fixture(scope="module")
@@ -286,31 +65,14 @@ def synthetic_pandera_schema(synthetic_flat_dataframe_model):
 
 
 @pytest.fixture(scope="module")
-def compiled_synthetic_pandera_schema_module_serialized(compiled_synthetic_schema_module, synthetic_pandera_schema):
-    del compiled_synthetic_schema_module  # suppress warning
-
-    logger.info(f"{synthetic_pandera_schema.serialize()}")
-    yield synthetic_pandera_schema.compile_dataframe_model("panderagen_class_based")
-
-    # unload the modules used in this testing
-    sys.modules.pop("panderagen_polars_schema", None)
-    sys.modules.pop("panderagen_class_based", None)
-
-
-@pytest.fixture(scope="module")
-def pandera_schema_loaded(synthetic_flat_dataframe_model):
-    generator = PanderaDataframeGenerator(synthetic_flat_dataframe_model, backing_form="loaded")
-    generator.template_file = "pandera.jinja2"
-    generator.template_path = "panderagen_class_based"
-
-    return generator
-
-
-@pytest.fixture(scope="module")
-def compiled_synthetic_pandera_schema_module(compiled_synthetic_schema_module, pandera_schema_loaded):
+def compiled_synthetic_pandera_schema_module(compiled_modules):
     """The pandera schema using the loaded backing form"""
-    logger.info(f"PANDERA LOADED\n{pandera_schema_loaded.serialize()}")
-    return pandera_schema_loaded.compile_dataframe_model("panderagen_schema_loaded")
+    return compiled_modules["panderagen_schema_loaded"]
+
+
+@pytest.fixture(scope="module")
+def compiled_synthetic_pandera_schema_module_serialized(compiled_modules):
+    return compiled_modules["panderagen_class_based"]
 
 
 @pytest.fixture(scope="module")
@@ -469,8 +231,6 @@ def big_synthetic_dataframe_serialized(
 @pytest.fixture(scope="module")
 def big_synthetic_dataframe(
     big_synthetic_dataframe_serialized,
-    compiled_synthetic_schema_module,  # required for dependency
-    compiled_synthetic_pandera_schema_module,  # required for dependency
     compiled_synthetic_schema_transform,
 ):
     """Synthetic dataframe with inefficient inline forms converted to lists"""
