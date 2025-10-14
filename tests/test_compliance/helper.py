@@ -32,7 +32,7 @@ from pydantic import BaseModel, ConfigDict
 
 from linkml.transformers.logical_model_transformer import UnsatisfiableAttribute
 
-from .dataframe_helper import check_data_pandera, check_data_polars_schema
+from .dataframe_helper import check_data_pandera
 
 try:
     from yaml import CSafeDumper as SafeDumper
@@ -819,8 +819,8 @@ def check_data(
         elif isinstance(gen, GENERATORS[PANDERA_POLARS_CLASS][0]):
             check_data_pandera(schema, output, target_class, object_to_validate, coerced, expected_behavior, valid)
         elif isinstance(gen, GENERATORS[DATAFRAME_POLARS_SCHEMA]):
-            check_data_polars_schema(
-                schema, output, target_class, object_to_validate, coerced, expected_behavior, valid
+            check_data_pandera(
+                schema, output, target_class, object_to_validate, coerced, expected_behavior, valid, polars_only=True
             )
         elif isinstance(gen, ContextGenerator):
             context_dir = _schema_out_path(schema) / "generated" / "jsonld_context.context.jsonld"
