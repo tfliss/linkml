@@ -8,13 +8,12 @@ import click
 from linkml._version import __version__
 from linkml.generators.oocodegen import OODocument
 
-from .arrow_schema.arrow_schema_dataframe_generator import ArrowSchemaDataframeGenerator
 from .dataframe_generator import DataframeGenerator
 from .pandera.pandera_dataframe_generator import PanderaDataframeGenerator
 from .polars_schema.polars_schema_dataframe_generator import PolarsSchemaDataframeGenerator
 
 # Allowed template directories
-ALLOWED_TEMPLATE_DIRECTORIES = ["panderagen_class_based", "panderagen_polars_schema", "panderagen_arrow_schema"]
+ALLOWED_TEMPLATE_DIRECTORIES = ["panderagen_class_based", "panderagen_polars_schema"]
 
 
 # Available generator classes
@@ -26,10 +25,6 @@ GENERATOR_CLASSES = {
     "PolarsSchemaDataframeGenerator": {
         "class": PolarsSchemaDataframeGenerator,
         "module": "linkml.generators.panderagen.polars_schema_dataframe_generator",
-    },
-    "ArrowSchemaDataframeGenerator": {
-        "class": ArrowSchemaDataframeGenerator,
-        "module": "linkml.generators.panderagen.arrow_schema_dataframe_generator",
     },
 }
 

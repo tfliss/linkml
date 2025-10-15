@@ -12,7 +12,6 @@ class TemplateEnum(Enum):
     CLASS_BASED = "panderagen_class_based"
     OBJECT_BASED = "panderagen_object_based"
     POLARS_SCHEMA = "polars_schema"
-    PYARROW_SCHEMA = "pyarrow_schema"
 
 
 @dataclass
