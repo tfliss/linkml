@@ -1,141 +1,147 @@
-id: https://w3id.org/linkml/examples/pandera_constraints
-name: test_pandera_constraints
+id: https://w3id.org/linkml/examples/dataframe_conversion
+name: dataframe_conversion
 prefixes:
+  ex: https://w3id.org/linkml/examples/dataframe_conversion/
   linkml: https://w3id.org/linkml/
-  ex: https://w3id.org/linkml/examples/pandera_constraints/
 imports:
   - linkml:types
-default_range: string
 default_prefix: ex
+default_range: string
 
 classes:
-
-  AnyType:
-    description: the magic class_uri makes this map to linkml Any or polars Object
-    class_uri: linkml:Any
-
-  ColumnType:
-    description: Nested in a column
+  NestedRecord:
+    description: Nested object inlined in lists and maps
     attributes:
-      id:
+      code:
         identifier: true
         range: string
-      x:
+      metric:
         range: integer
         required: true
         minimum_value: 0
         maximum_value: 10000
-      y:
+      score:
         range: integer
         required: true
 
-  SimpleDictType:
-    description: Nested as a simple dict
+  RecordDictionary:
+    description: Simple dictionary entry
     attributes:
-      id:
-        identifier: True
+      code:
+        identifier: true
         range: string
-      x:
+      metric:
         range: integer
         required: true
 
-  # NestedSimpleDictType:
-  #   description: A list of inlined objects within a simple dict
-  #   attributes:
-  #     id:
-  #       identifier: True
-  #       range: string
-  #     nested_list:
-  #       range: ColumnType
-  #       multivalued: True
-  #       inlined: True
-  #       inlined_as_list: False
-
-  # DoubleNestedSimpleDictType:
-  #   description: A list of inlined objects within a simple dict
-  #   attributes:
-  #     id:
-  #       identifier: True
-  #       range: string
-  #     nested_simple_dict_list:
-  #       range: NestedSimpleDictType
-  #       multivalued: True
-  #       inlined: True
-  #       inlined_as_list: False
-
-  PanderaSyntheticTableFlat:
-    description: a table that only includes columns directly compatible with a CSV
+  DataframeRow:
+    description: Row structure modeled after the Polars JSON conversion example
+    # tree_root: true
     attributes:
-      identifier_column:
-        description: identifier
+      id_column:
         identifier: true
         range: integer
         required: true
-      bool_column:
-        description: test boolean column
+      flag_column:
         range: boolean
         required: true
         #ifabsent: true
-      integer_column:
+      count_column:
         description: test integer column with min/max values
         range: integer
         required: true
         minimum_value: 0
         maximum_value: 999
         #ifabsent: int(5)
-      float_column:
+      ratio_column:
         description: test float column
         range: float
         required: true
         #ifabsent: float(2.3)
-      string_column:
+      label_column:
         description: test string column
         range: string
         required: true
         pattern: "^(this)|(that)|(whatever)$"
         #ifabsent: string("whatever")
-      date_column:
+      event_date_column:
         description: test date column
         range: date
         required: true
         #ifabsent: date("2020-01-31")
-      datetime_column:
+      event_datetime_column:
         description: test datetime column
         range: datetime
         required: true
         #ifabsent: datetime("2020-01-31 03:23:57")
       enum_column:
         description: test enum column
-        range: SyntheticEnum
+        range: DemoEnum
         required: true
       ontology_enum_column:
-        description: test enum column with ontology values
-        range: SyntheticEnumOnt
+        range: DemoOntologyEnum
         required: true
-        #ifabsent: SyntheticEnumOnt(ANIMAL)
+        #ifabsent: DemoOntologyEnum(ALPHA)
       multivalued_column:
         description: one-to-many form
         range: integer
-        required: true
         multivalued: true
         inlined_as_list: true
-      cardinality_column:
+        required: true
+      singular_column:
         description: check cardinality
         range: integer
-        required: true
         minimum_cardinality: 1
         maximum_cardinality: 1
-      foreign_key_object_column:
-        description: test column that is an association to another table
-        range: ColumnType
         required: true
-        inlined: false
-        multivalued: false
+      nested_object_column:
+        description: test column that is a directly nested single object (no dictionary collection)
+        range: NestedRecord
+        required: true
+        inlined: true
+      foreign_key_column:
+        description: test column that is an association to another table
+        range: NestedRecord
+      inlined_list_column:
+        description: test column with another class inlined as a list
+        range: NestedRecord
+        multivalued: true
+        required: true
+        inlined: true
+        inlined_as_list: true
 
-  PanderaSyntheticTableEfficient:
-    description: A flat table with a reasonably complete assortment of datatypes.
+  AnyType:
+    description: the magic class_uri makes this map to linkml Any or polars Object
+    class_uri: linkml:Any
+
+  # NestedRecordDictionary:
+  #   description: A list of inlined objects within a simple dict
+  #   attributes:
+  #     id:
+  #       identifier: True
+  #       range: string
+  #     nested_list:
+  #       range: NestedRecord
+  #       multivalued: True
+  #       inlined: True
+  #       inlined_as_list: False
+
+  # DoubleNestedRecordDictionary:
+  #   description: A list of inlined objects within a simple dict
+  #   attributes:
+  #     id:
+  #       identifier: True
+  #       range: string
+  #     nested_simple_dict_list:
+  #       range: NestedRecordDictionary
+  #       multivalued: True
+  #       inlined: True
+  #       inlined_as_list: False
+
+  DataframeRowFull:
+    description: Includes all efficient types and inefficient dict types
     mixins:
-    - PanderaSyntheticTableFlat
+    - DataframeRow
     attributes:
       # multivalued_one_many_column:
       #   description: list form
@@ -146,64 +152,42 @@ classes:
         description: needs to have type object
         range: AnyType
         required: true
-      inlined_as_object_column:
-        description: test column that is a directly nested single object (no dictionary collection)
-        range: ColumnType
-        required: true
-        inlined: true
-        multivalued: false
-      inlined_as_list_column:
-        description: test column with another class inlined as a list
-        range: ColumnType
-        required: true
-        inlined: true
-        inlined_as_list: true
-        multivalued: true
-
-  PanderaSyntheticTable:
-    description: Includes all efficient types and inefficient dict types
-    mixins:
-    - PanderaSyntheticTableEfficient
-    attributes:
-      inlined_class_column:
+      inlined_map_column:
         description: test column with another class inlined as a struct
-        range: ColumnType
-        required: true
-        inlined: true
-        inlined_as_list: false
+        range: NestedRecord
         multivalued: true
+        inlined: true
+        required: true
       inlined_simple_dict_column:
         description: test column inlined using simple dict form
-        range: SimpleDictType
+        range: RecordDictionary
         multivalued: true
         inlined: true
         inlined_as_list: false
         required: true
       # inlined_nested_simple_dict_column:
       #   description: test column inlined using simple dict form and list struct other
-      #   range: NestedSimpleDictType
+      #   range: NestedRecordDictionary
       #   multivalued: true
       #   inlined: true
       #   inlined_as_list: false
       #   required: true
       # double_nested_simple_dict_column:
       #   description: test column inlined using simple dict form and list struct other
-      #   range: DoubleNestedSimpleDictType
+      #   range: DoubleNestedRecordDictionary
       #   multivalued: true
       #   inlined: true
       #   inlined_as_list: false
       #   required: true
 
 enums:
-  SyntheticEnum:
-    description: simple enum for tests
+  DemoEnum:
     permissible_values:
-      ANIMAL:
-      VEGETABLE:
-      MINERAL:
+      ALPHA:
+      BETA:
+      GAMMA:
 
-  SyntheticEnumOnt:
-    description: ontology enum for tests
+  DemoOntologyEnum:
     permissible_values:
       fiction: ex:000001
       non fiction: ex:000002

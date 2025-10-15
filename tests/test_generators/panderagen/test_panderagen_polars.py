@@ -175,3 +175,12 @@ def test_synthetic_dataframe(
 
 def test_dump_synthetic_df(big_synthetic_dataframe):
     logger.info(big_synthetic_dataframe)
+
+
+@pytest.fixture(scope="module")
+def test_enums(compiled_synthetic_schema_module):
+    DemoEnum = compiled_synthetic_schema_module.DemoEnum
+    DemoOntologyEnum = compiled_synthetic_schema_module.DemoOntologyEnum
+
+    assert set(DemoEnum.categories) == {"ALPHA", "BETA", "GAMMA"}
+    assert set(DemoOntologyEnum.categories) == {"fiction", "non fiction"}

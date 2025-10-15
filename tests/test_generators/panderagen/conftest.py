@@ -77,17 +77,17 @@ def compiled_synthetic_pandera_schema_module_serialized(compiled_modules):
 
 @pytest.fixture(scope="module")
 def column_type_instances():
-    """valid ColumnType instances that can be used in tests"""
+    """valid NestedRecord instances that can be used in tests"""
     return [
         {
-            "id": "thing_one",
-            "x": 1111,
-            "y": 2222,
+            "code": "thing_one",
+            "metric": 1111,
+            "score": 2222,
         },
         {
-            "id": "thing_two",
-            "x": 3333,
-            "y": 4444,
+            "code": "thing_two",
+            "metric": 3333,
+            "score": 4444,
         },
     ]
 
@@ -97,21 +97,21 @@ def invalid_column_type_instances():
     """invalid (float values) ColumnType instances that can trigger failures."""
     return [
         {
-            "id": "thing_one",
-            "x": 1111.1,
-            "y": 2222.2,
+            "code": "thing_one",
+            "metric": 1111.1,
+            "score": 2222.2,
         },
         {
-            "id": "thing_two",
-            "x": 3333.3,
-            "y": 4444.4,
+            "code": "thing_two",
+            "metric": 3333.3,
+            "score": 4444.4,
         },
     ]
 
 
 @pytest.fixture(scope="module")
 def valid_inlined_dict_column_expression(column_type_instances):
-    """synthetic data that conforms to the inlined_class_column schema
+    """synthetic data that conforms to the inlined_mapp_column schema
     using polars expression API.
     """
     # fmt: off
@@ -124,7 +124,7 @@ def valid_inlined_dict_column_expression(column_type_instances):
 
 @pytest.fixture(scope="module")
 def invalid_inlined_dict_column_expression(invalid_column_type_instances):
-    """synthetic data that conforms to the inlined_class_column schema
+    """synthetic data that conforms to the inlined_map_column schema
     using polars expression API.
     """
     # fmt: off
@@ -172,53 +172,53 @@ def big_synthetic_dataframe_serialized(
     compiled_synthetic_schema_module,
 ):
     """
-    Construct a reasonably sized dataframe that complies with the PanderaSyntheticTable model.
+    Construct a reasonably sized dataframe that complies with the DataframeRow model.
     Uses 'serialized' backing form including inefficient dict collections.
     """
-    test_enum = pl.Enum(["ANIMAL", "VEGETABLE", "MINERAL"])
-    test_ont_enum = pl.Enum(["fiction", "non fiction"])
+    DemoEnum = compiled_synthetic_schema_module.DemoEnum
+    DemoOntologyEnum = compiled_synthetic_schema_module.DemoOntologyEnum
 
     # fmt: off
     df = (
         pl.DataFrame(
             {
-                "identifier_column": pl.Series(np.arange(0, N), dtype=pl.Int64),
-                "bool_column": pl.Series(np.random.choice([True, False], size=N), dtype=pl.Boolean),
-                "integer_column": pl.Series(np.random.choice(range(100), size=N), dtype=pl.Int64),
-                "float_column": pl.Series(np.random.choice([1.0, 2.0, 3.0], size=N), dtype=pl.Float64),
-                "string_column": np.random.choice(["this", "that"], size=N),
-                "date_column": pl.Series(
+                "id_column": pl.Series(np.arange(0, N), dtype=pl.Int64),
+                "flag_column": pl.Series(np.random.choice([True, False], size=N), dtype=pl.Boolean),
+                "count_column": pl.Series(np.random.choice(range(100), size=N), dtype=pl.Int64),
+                "ratio_column": pl.Series(np.random.choice([1.0, 2.0, 3.0], size=N), dtype=pl.Float64),
+                "label_column": np.random.choice(["this", "that"], size=N),
+                "event_date_column": pl.Series(
                     np.random.choice(["2021-03-27", "2021-03-28"], size=N),
                     dtype=pl.Date,
                     strict=False
                 ),
-                "datetime_column": pl.Series(
+                "event_datetime_column": pl.Series(
                     np.random.choice(["2021-03-27T03:00:00", "2021-03-28T03:00:00"], size=N),
                     dtype=pl.Datetime(time_unit='us', time_zone=None),
                     strict=False
                 ),
                   "enum_column": pl.Series(
-                      np.random.choice(["ANIMAL", "VEGETABLE", "MINERAL"], size=N),
-                      dtype=test_enum,
+                      np.random.choice(DemoEnum.categories, size=N),
+                      dtype=DemoEnum,
                       strict=False
                   ),
                   "ontology_enum_column": pl.Series(
-                      np.random.choice(["fiction", "non fiction"], size=N),
-                      dtype=test_ont_enum,
+                      np.random.choice(DemoOntologyEnum.categories, size=N),
+                      dtype=DemoOntologyEnum,
                       strict=False
                   ),
                 "multivalued_column": [[1, 2, 3]] * N,
                 "any_type_column": [1] * N,
-                "cardinality_column": np.arange(1, N+1),
-                "inlined_as_object_column": [ column_type_instances[0] ] * N,
-                "foreign_key_object_column": [ "thing_one" ] * N,
+                "singular_column": np.arange(1, N+1),
+                "nested_object_column": [ column_type_instances[0] ] * N,
+                "foreign_key_column": [ "thing_one" ] * N,
                 "inlined_simple_dict_column": [valid_simple_dict_column_expression] * N,
                 #"inlined_nested_simple_dict_column": [ valid_nested_simple_dict_column_expression] * N,
                 #"double_nested_simple_dict_column": [valid_double_nested_simple_dict_column_expression] * N,
-                "inlined_as_list_column": [ column_type_instances ] * N,
-                "inlined_class_column": [ valid_inlined_dict_column_expression ] * N, # is multivalued collection dict
+                "inlined_list_column": [ column_type_instances ] * N,
+                "inlined_map_column": [ valid_inlined_dict_column_expression ] * N, # is multivalued collection dict
             },
-            schema=compiled_synthetic_schema_module.PanderaSyntheticTable
+            schema=compiled_synthetic_schema_module.DataframeRowFull
         )
     )
     # fmt: on
@@ -234,5 +234,5 @@ def big_synthetic_dataframe(
     compiled_synthetic_schema_transform,
 ):
     """Synthetic dataframe with inefficient inline forms converted to lists"""
-    dict_to_list_transform = compiled_synthetic_schema_transform.PanderaSyntheticTable()
+    dict_to_list_transform = compiled_synthetic_schema_transform.DataframeRowFull()
     return dict_to_list_transform.load(big_synthetic_dataframe_serialized)
