@@ -34,6 +34,20 @@ class SlotHandlerBase(ABC):
     FORM_FOREIGN_KEY = "foreign_key"
     FORM_ERROR = "error"
 
+    def backing_inlined_form(self, inlined_form: str) -> str:
+        loaded_form = {
+            SlotHandlerBase.FORM_INLINED_SIMPLE_DICT: SlotHandlerBase.FORM_INLINED_LIST_DICT,
+            SlotHandlerBase.FORM_INLINED_COLLECTION_DICT: SlotHandlerBase.FORM_INLINED_LIST_DICT,
+        }
+
+        if self.generator.backing_form in ["serialization", "transform"]:
+            return inlined_form
+        elif self.generator.backing_form in ["loaded"]:
+            return loaded_form.get(inlined_form, inlined_form)
+
+        logger.warning(f"Unknown backing form: {self.generator.backing_form}")
+        return inlined_form
+
     def is_multivalued(self, slot):
         return "multivalued" in slot and slot.multivalued is True
 
@@ -150,19 +164,7 @@ class SlotHandlerBase(ABC):
         return range_simple_dict_value_slot
 
     @abstractmethod
-    def handle_none_slot(self, field) -> None:
-        pass
-
-    @abstractmethod
     def handle_class_slot(self, slot, field) -> None:
-        pass
-
-    @abstractmethod
-    def handle_non_inlined_class_slot(self, slot, field) -> None:
-        pass
-
-    @abstractmethod
-    def handle_type_slot(self, slot, field) -> None:
         pass
 
     def get_enum_definition(self, range: str):
@@ -206,3 +208,47 @@ class SlotHandlerBase(ABC):
             raise Exception(f"Unknown range {range}")
 
         return field
+
+    def set_simple_dict_inline_details(self, slot, field) -> None:
+        """Extra metadata is to help with the simple dict case"""
+        (range_id_slot, range_simple_dict_value_slot, _) = get_range_associated_slots(  # range_required_slots,
+            self.generator.schemaview, slot.range
+        )
+
+        field.inline_id_column_name = range_id_slot.name
+        field.inline_other_column_name = range_simple_dict_value_slot.name
+
+        other_range = range_simple_dict_value_slot.range
+
+        if other_range in self.generator.schemaview.all_enums():
+            field.inline_other_range = self.generator.get_enum_name(other_range)
+        elif other_range in self.generator.schemaview.all_types():
+            field.inline_other_range = self.generator.map_type(self.generator.schemaview.all_types().get(other_range))
+        elif other_range in self.generator.schemaview.all_classes():
+            field.inline_other_range = self.generator.get_class_name(other_range)
+        else:
+            raise ValueError(f"Cannot find range {other_range} for simple dict slot {slot.name}")
+
+    def handle_non_inlined_class_slot(self, slot, field) -> None:
+        """non-inlined class slots have been temporarily removed but this will be needed to support them"""
+        # TODO: resolve this earlier
+        range = slot.range
+        field.range = f"ID_TYPES['{self.generator.get_class_name(range)}']"
+
+    def handle_none_slot(self, slot, field: DataframeField) -> None:
+        del slot  # unused for now
+        range = self.generator.schema.default_range  # need to figure this out, set at the beginning?
+
+        if range is None:
+            range = "str"
+
+        field.range = range
+
+    def handle_type_slot(self, slot, field) -> None:
+        t = self.generator.schemaview.all_types().get(slot.range)
+        range = self.generator.map_type(t)
+
+        if self.is_multivalued(slot):
+            range = self.handle_multivalued_slot(slot, range)
+
+        field.range = range
