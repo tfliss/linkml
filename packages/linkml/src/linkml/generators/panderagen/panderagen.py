@@ -93,6 +93,13 @@ PANDERA_GROUP = [
         "loaded",
     ),
     (
+        "panderagen_ibis",
+        PanderaDataframeGenerator,
+        "panderagen_ibis",
+        "pandera.jinja2",
+        "loaded",
+    ),
+    (
         "panderagen_polars_schema_transform",
         PolarsSchemaDataframeGenerator,
         "panderagen_polars_schema",
