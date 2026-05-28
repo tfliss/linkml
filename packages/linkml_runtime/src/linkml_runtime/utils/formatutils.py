@@ -27,6 +27,8 @@ def camelcase(txt: str) -> str:
 
 
 def underscore(txt: str) -> str:
+    # return ws_pattern.sub("-", txt.strip()).replace(",", "").replace("-", "-")
+
     return ws_pattern.sub("_", txt.strip()).replace(",", "").replace("-", "_")
 
 

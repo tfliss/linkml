@@ -330,6 +330,9 @@ class SchemaView:
         if self._hash is None:
             self._hash = hash(self.__key())
         return self._hash
+    
+    def _underscore(self, n):
+        return n
 
     def set_modified(self) -> None:
         """Increase the number of schema modifications by 1."""
@@ -766,7 +769,7 @@ class SchemaView:
 
         :return: mapping from safe names to slot
         """
-        return {underscore(s.name): s for s in self.all_slots().values()}
+        return {self._underscore(s.name): s for s in self.all_slots().values()}
 
     @lru_cache(None)
     def class_name_mappings(self) -> dict[str, ClassDefinition]:
@@ -1394,13 +1397,13 @@ class SchemaView:
             e_name = camelcase(e.name)
         elif isinstance(e, SlotDefinition):
             uri = e.slot_uri
-            e_name = underscore(e.name)
+            e_name = self._underscore(e.name)
         elif isinstance(e, EnumDefinition):
             uri = e.enum_uri
             e_name = e.name
         elif isinstance(e, TypeDefinition):
             uri = e.uri
-            e_name = underscore(e.name)
+            e_name = self._underscore(e.name)
         else:
             msg = f"Must be class or slot or type: {e}"
             # should be a TypeError
@@ -1737,10 +1740,12 @@ class SchemaView:
         if induced_slot.identifier or induced_slot.key:
             induced_slot.required = True
         if mangle_name:
-            mangled_name = f"{camelcase(class_name)}__{underscore(slot_name)}"
+            mangled_name = f"{camelcase(class_name)}__{self._underscore(slot_name)}"
+            # mangled_name = f"{camelcase(class_name)}__{underscore(slot_name)}"
             induced_slot.name = mangled_name
         if not induced_slot.alias:
-            underscored = underscore(slot_name)
+            underscored = self._underscore(slot_name)
+            # underscored = underscore(slot_name)
             if underscored != induced_slot.name:
                 induced_slot.alias = underscored
         # set() handles edge case, slot name in both c.slots and c.attributes.
